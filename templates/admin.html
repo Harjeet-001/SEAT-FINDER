@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Upload</title>
+</head>
+<body>
+<h2>Admin – Upload Seating Plan</h2>
+
+<input type="file" id="pdfFile">
+<button onclick="uploadPDF()">Upload PDF</button>
+
+<script>
+function uploadPDF() {
+    const file = document.getElementById("pdfFile").files[0];
+    if (!file) {
+        alert("Select a PDF");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("pdf", file);
+
+    fetch("/admin/upload", {
+        method: "POST",
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => alert(data.message || data.error));
+}
+</script>
+</body>
+</html>

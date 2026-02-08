@@ -1,109 +1,142 @@
-from flask import Flask, render_template, request, jsonify
-import pdfplumber
-import re
+from flask import Flask, render_template, request, jsonify, session, redirect
 import os
+import pandas as pd
 
 app = Flask(__name__)
+app.secret_key = "change-this-secret-key"
+
+# ------------------------
+# CONFIG
+# ------------------------
 UPLOAD_FOLDER = "uploads"
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-seat_map = {}
-DATA_READY = False
+FN_FILE = os.path.join(UPLOAD_FOLDER, "fn.xlsx")
+AN_FILE = os.path.join(UPLOAD_FOLDER, "an.xlsx")
 
+ADMIN_PASSWORD = "admin123"
 
-def process_pdf(pdf_path):
-    global seat_map, DATA_READY
-    seat_map = {}
+# ------------------------
+# GLOBAL DATAFRAMES
+# ------------------------
+fn_df = None
+an_df = None
 
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            if not text:
-                continue
+def load_excels():
+    global fn_df, an_df
 
-            # ---------- Extract Hall ----------
-            hall_no = "UNKNOWN"
-            hall_patterns = [
-                r"LECTURE\s*HALL\s*[-:]?\s*(LH\s*\d+)",
-                r"HALL\s*NO\s*[:\-]?\s*(LH\s*\d+)",
-                r"\b(LH\s*\d+)\b"
-            ]
+    fn_df = None
+    an_df = None
 
-            for pattern in hall_patterns:
-                m = re.search(pattern, text, re.IGNORECASE)
-                if m:
-                    hall_no = m.group(1).replace(" ", "")
-                    break
+    if os.path.exists(FN_FILE):
+        fn_df = pd.read_excel(FN_FILE)
+        fn_df.columns = fn_df.columns.str.strip().str.upper()
 
-            # ---------- Parse Lines ----------
-            lines = text.split("\n")
+    if os.path.exists(AN_FILE):
+        an_df = pd.read_excel(AN_FILE)
+        an_df.columns = an_df.columns.str.strip().str.upper()
 
-            for line in lines:
-                # Normalize spacing
-                clean = re.sub(r"\s+", " ", line).strip()
+load_excels()
 
-                # Desk | Reg | Name
-                match = re.match(
-                    r"^(\d+)\s+([A-Z0-9]+)\s+(.+)$",
-                    clean
-                )
-
-                if match:
-                    desk_no = match.group(1)
-                    reg_no = match.group(2)
-                    name = match.group(3).strip()
-
-                    # Filter junk lines
-                    if len(name) < 3 or "REGISTER" in name.upper():
-                        continue
-
-                    seat_map[reg_no] = {
-                        "desk": desk_no,
-                        "hall": hall_no,
-                        "name": name
-                    }
-
-    DATA_READY = True
-
-
+# ------------------------
+# INDEX (STUDENT)
+# ------------------------
 @app.route("/")
-def home():
+def index():
     return render_template("index.html")
 
-
-@app.route("/admin")
-def admin():
-    return render_template("admin.html")
-
-
-@app.route("/admin/upload", methods=["POST"])
-def upload_pdf():
-    global DATA_READY
-
-    file = request.files.get("pdf")
-    if not file:
-        return jsonify({"error": "No PDF uploaded"}), 400
-
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    path = os.path.join(UPLOAD_FOLDER, file.filename)
-    file.save(path)
-
-    process_pdf(path)
-    return jsonify({"message": "Seating data loaded successfully"})
-
-
+# ------------------------
+# LOOKUP API
+# ------------------------
 @app.route("/lookup", methods=["POST"])
 def lookup():
-    if not DATA_READY:
-        return jsonify({"error": "Seating data not loaded yet"}), 503
+    data = request.get_json(silent=True)
 
-    reg_no = request.json.get("reg_no", "").strip()
+    if not data or "reg" not in data:
+        return jsonify({"error": "Invalid request"}), 400
 
-    if reg_no in seat_map:
-        return jsonify(seat_map[reg_no])
+    reg = str(data["reg"]).strip().upper()
+    result = {}
 
-    return jsonify({"error": "Registration number not found"}), 404
+    if fn_df is not None and "REGISTER NUMBER" in fn_df.columns:
+        r = fn_df[fn_df["REGISTER NUMBER"].astype(str).str.upper() == reg]
+        if not r.empty:
+            row = r.iloc[0]
+            result["FN"] = {
+                "name": str(row["NAME"]),
+                "hall": str(row["HALL"]),
+                "seat": str(row["SEAT"])
+            }
 
+    if an_df is not None and "REGISTER NUMBER" in an_df.columns:
+        r = an_df[an_df["REGISTER NUMBER"].astype(str).str.upper() == reg]
+        if not r.empty:
+            row = r.iloc[0]
+            result["AN"] = {
+                "name": str(row["NAME"]),
+                "hall": str(row["HALL"]),
+                "seat": str(row["SEAT"])
+            }
 
+    if not result:
+        return jsonify({"error": "Register number not found"}), 404
+
+    return jsonify(result)
+
+# ------------------------
+# ADMIN LOGIN
+# ------------------------
+@app.route("/admin-login", methods=["GET", "POST"])
+def admin_login():
+    session.clear()  # force password every time
+
+    if request.method == "POST":
+        password = request.form.get("password", "")
+
+        if password == ADMIN_PASSWORD:
+            session["admin_logged_in"] = True
+            return redirect("/admin")
+        else:
+            return render_template("admin_login.html", error="Invalid password")
+
+    return render_template("admin_login.html")
+
+# ------------------------
+# ADMIN PANEL (PROTECTED)
+# ------------------------
+@app.route("/admin", methods=["GET", "POST"])
+def admin():
+    if not session.get("admin_logged_in"):
+        return redirect("/admin-login")
+
+    # GET → show admin UI
+    if request.method == "GET":
+        return render_template("admin.html")
+
+    # POST → upload Excel
+    file = request.files.get("file")
+    session_type = request.form.get("session")
+
+    if not file or session_type not in ["FN", "AN"]:
+        return jsonify({"status": "error"}), 400
+
+    save_path = FN_FILE if session_type == "FN" else AN_FILE
+    file.save(save_path)
+
+    load_excels()
+
+    return jsonify({"status": "ok"})
+
+# ------------------------
+# LOGOUT (OPTIONAL)
+# ------------------------
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/admin-login")
+
+# ------------------------
+# RUN
+# ------------------------
 if __name__ == "__main__":
-    app.run(port=10000, debug=True)
+    app.run(debug=True, port=10000)

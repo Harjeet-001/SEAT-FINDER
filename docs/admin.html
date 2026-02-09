@@ -18,28 +18,54 @@
 
 <script>
 async function uploadExcel(session) {
-  const file = document.getElementById(session + "_file").files[0];
-  if (!file) {
-    alert("Select an Excel file first");
-    return;
-  }
+  try {
+    const fileInput = document.getElementById(session + "_file");
+    const file = fileInput.files[0];
 
-  const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer);
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet);
-
-  const res = await fetch(
-    "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session, data: rows })
+    if (!file) {
+      alert("Select an Excel file first");
+      return;
     }
-  );
 
-  const out = await res.json();
-  alert(out.status === "ok" ? "Upload successful" : "Upload failed");
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    if (!rows.length) {
+      alert("Excel file is empty");
+      return;
+    }
+
+    const res = await fetch(
+      "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session: session,
+          data: rows
+        })
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error("Server error");
+    }
+
+    const out = await res.json();
+
+    if (out.status === "ok") {
+      alert(session + " upload successful");
+      fileInput.value = ""; // reset input
+    } else {
+      alert("Upload failed");
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert("Upload failed – check console");
+  }
 }
 </script>
 

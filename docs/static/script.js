@@ -1,46 +1,57 @@
-async function findSeat() {
+const API_BASE = "https://seat-finder-api.harjeetgowda644.workers.dev";
+
+// ---------- STUDENT LOOKUP ----------
+function findSeat() {
   const reg = document.getElementById("reg").value.trim();
-  if (!reg) return;
+  const resultDiv = document.getElementById("result");
 
-  const res = await fetch(
-    "https://seat-finder-api.harjeetgowda644.workers.dev/lookup",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reg })
-    }
-  );
+  resultDiv.innerHTML = "";
 
-  const data = await res.json();
-  const result = document.getElementById("result");
-
-  if (data.error) {
-    result.innerHTML = `<div class="error">${data.error}</div>`;
+  if (!reg) {
+    resultDiv.innerHTML = `<div class="error">Enter register number</div>`;
     return;
   }
 
-  let html = `<div class="results">`;
+  fetch(API_BASE + "/lookup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reg })
+  })
+    .then(res => res.json().then(data => ({ status: res.status, data })))
+    .then(({ status, data }) => {
+      if (status !== 200) {
+        resultDiv.innerHTML = `<div class="error">${data.error}</div>`;
+        return;
+      }
 
-  if (data.FN) {
-    html += `
-      <div class="session-box">
-        <div class="session-title">FN</div>
-        <p>Name: ${data.FN.name}</p>
-        <p>Hall: ${data.FN.hall}</p>
-        <p>Seat: ${data.FN.seat}</p>
-      </div>`;
-  }
+      let html = `<div class="results">`;
 
-  if (data.AN) {
-    html += `
-      <div class="session-box">
-        <div class="session-title">AN</div>
-        <p>Name: ${data.AN.name}</p>
-        <p>Hall: ${data.AN.hall}</p>
-        <p>Seat: ${data.AN.seat}</p>
-      </div>`;
-  }
+      if (data.FN) {
+        html += `
+          <div class="session-box">
+            <div class="session-title">FN</div>
+            <p><b>Name:</b> ${data.FN.name}</p>
+            <p><b>Hall:</b> ${data.FN.hall}</p>
+            <p><b>Seat:</b> ${data.FN.seat}</p>
+          </div>
+        `;
+      }
 
-  html += `</div>`;
-  result.innerHTML = html;
+      if (data.AN) {
+        html += `
+          <div class="session-box">
+            <div class="session-title">AN</div>
+            <p><b>Name:</b> ${data.AN.name}</p>
+            <p><b>Hall:</b> ${data.AN.hall}</p>
+            <p><b>Seat:</b> ${data.AN.seat}</p>
+          </div>
+        `;
+      }
+
+      html += `</div>`;
+      resultDiv.innerHTML = html;
+    })
+    .catch(() => {
+      resultDiv.innerHTML = `<div class="error">Server error</div>`;
+    });
 }

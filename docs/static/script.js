@@ -55,3 +55,33 @@ function findSeat() {
       resultDiv.innerHTML = `<div class="error">Server error</div>`;
     });
 }
+// ---------- LAST UPDATED INFO ----------
+async function loadLastUpdated() {
+  try {
+    const res = await fetch(API_BASE + "/meta");
+    const meta = await res.json();
+
+    let text = "";
+
+    if (meta.FN) {
+      text += `FN Updated: ${new Date(meta.FN.uploaded_at).toLocaleString()}<br>`;
+    }
+
+    if (meta.AN) {
+      text += `AN Updated: ${new Date(meta.AN.uploaded_at).toLocaleString()}`;
+    }
+
+    if (!text) {
+      text = "Seating data not uploaded yet";
+    }
+
+    document.getElementById("lastUpdated").innerHTML = text;
+  } catch (err) {
+    document.getElementById("lastUpdated").innerText =
+      "Unable to load seating update info";
+  }
+}
+
+// load on page open
+loadLastUpdated();
+

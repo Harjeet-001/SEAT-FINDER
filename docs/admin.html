@@ -31,71 +31,40 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      // ---------- READ RAW ----------
+      // READ RAW ROWS (NO HEADERS)
       const rows = XLSX.utils.sheet_to_json(sheet, {
         header: 1,
         defval: ""
       });
 
-      let headerRowIndex = -1;
-      let colMap = {};
-      let hall = "";
+      if (rows.length < 7) return;
 
-      // ---------- FIND HALL ----------
-      rows.slice(0, 10).forEach(r => {
-        r.forEach(c => {
-          if (typeof c === "string" && c.toUpperCase().startsWith("HALL NO")) {
-            hall = c.split(":").slice(1).join(":").trim();
-          }
-        });
-      });
+      // 🔥 FIXED LOCATION VALUES (VERIFIED)
+      const hall = String(rows[3][4] || "").replace(/\n/g, " ").trim();
+      const side = String(rows[4][0] || "").trim();
 
-      // ---------- FIND HEADER ROW ----------
-      rows.forEach((row, i) => {
-        const joined = row.join(" ").toUpperCase();
-        if (
-          joined.includes("REGISTER") &&
-          joined.includes("STUDENT") &&
-          joined.includes("DESK")
-        ) {
-          headerRowIndex = i;
-          row.forEach((cell, idx) => {
-            const key = String(cell).toUpperCase().trim();
-            if (key.includes("REGISTER")) colMap.reg = idx;
-            if (key.includes("STUDENT")) colMap.name = idx;
-            if (key.includes("DESK")) colMap.seat = idx;
-          });
-        }
-      });
-
-      if (headerRowIndex === -1) return;
-
-      // ---------- READ STUDENT ROWS ----------
-      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+      // STUDENT DATA STARTS FROM ROW 6
+      for (let i = 6; i < rows.length; i++) {
         const row = rows[i];
 
-        const reg  = row[colMap.reg];
-        const name = row[colMap.name];
-        const seat = row[colMap.seat];
+        const desk = row[1];
+        const reg = row[2];
+        const name = row[3];
 
-        if (
-          typeof reg !== "string" ||
-          reg.trim().length < 5 ||
-          !name ||
-          !seat
-        ) continue;
+        if (!reg || !name || !desk) continue;
 
         finalData.push({
-          "REGISTER NUMBER": reg.trim().toUpperCase(),
+          "REGISTER NUMBER": String(reg).trim().toUpperCase(),
           "NAME": String(name).trim(),
-          "SEAT": String(seat).trim(),
-          "HALL": hall
+          "SEAT": String(desk).trim(),
+          "HALL": hall,
+          "SIDE": side
         });
       }
     });
 
     if (!finalData.length) {
-      alert("No valid seating data found");
+      alert("❌ No valid seating data found");
       return;
     }
 
@@ -110,7 +79,7 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(`${session} uploaded successfully (${finalData.length} records)`);
+    alert(`✅ ${session} uploaded (${finalData.length} students)`);
     fileInput.value = "";
 
   } catch (err) {

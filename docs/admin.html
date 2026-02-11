@@ -31,13 +31,24 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      // READ USING HEADERS
-      const rows = XLSX.utils.sheet_to_json(sheet, {
-        defval: ""
-      });
+      // READ USING HEADERS (KEEP AS-IS)
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      // 🔥 EXTRACT HALL FROM FIRST FEW ROWS (FIX)
+      let detectedHall = "";
+
+      for (let i = 0; i < 5 && i < rows.length; i++) {
+        for (const key in rows[i]) {
+          const cell = String(rows[i][key] || "");
+          if (cell.toUpperCase().includes("HALL NO")) {
+            detectedHall = cell.split(":")[1]?.trim() || "";
+            break;
+          }
+        }
+        if (detectedHall) break;
+      }
 
       rows.forEach(row => {
-        // 🔑 NORMALIZE COLUMN ACCESS
         const reg =
           row["REGISTER NO"] ||
           row["REGISTER NUMBER"] ||
@@ -54,24 +65,13 @@ async function uploadExcel(session) {
           row["SEAT"] ||
           row["Desk No"];
 
-        const hallRaw =
-          row["HALL NO"] ||
-          row["HALL"] ||
-          row["Hall No"];
-
         if (!reg || !name || !seat) return;
-
-        // ✂️ CLEAN HALL (handle semicolon)
-        let hall = "";
-        if (hallRaw) {
-          hall = String(hallRaw).split(";")[0].trim();
-        }
 
         finalData.push({
           "REGISTER NUMBER": String(reg).trim().toUpperCase(),
           "NAME": String(name).trim(),
           "SEAT": String(seat).trim(),
-          "HALL": hall || sheetName
+          "HALL": detectedHall || sheetName
         });
       });
     });

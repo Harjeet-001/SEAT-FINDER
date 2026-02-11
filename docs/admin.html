@@ -26,52 +26,76 @@ async function uploadExcel(session) {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
 
+    /* =====================================================
+       STEP 1: EXTRACT HALL + SIDE FROM FIRST SHEET ONLY
+       ===================================================== */
+    let hall = "";
+    let side = "";
+
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const firstRows = XLSX.utils.sheet_to_json(firstSheet, {
+      header: 1,
+      defval: ""
+    });
+
+    for (let i = 0; i < 10; i++) {
+      for (let j = 0; j < firstRows[i].length; j++) {
+        const cell = String(firstRows[i][j]).toUpperCase();
+
+        // HALL
+        if (cell.includes("HALL") && cell.includes("FLOOR")) {
+          hall = String(firstRows[i][j])
+            .split(":")
+            .slice(1)
+            .join(":")
+            .trim();
+        }
+
+        // SIDE (LEFT / RIGHT)
+        if (cell.includes("LEFT")) side = "LEFT";
+        if (cell.includes("RIGHT")) side = "RIGHT";
+      }
+    }
+
+    if (!hall) {
+      alert("Hall not found in first sheet. Check Excel format.");
+      return;
+    }
+
+    /* =====================================================
+       STEP 2: READ STUDENT DATA FROM ALL SHEETS
+       ===================================================== */
     let finalData = [];
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      // READ USING HEADERS
       const rows = XLSX.utils.sheet_to_json(sheet, {
         defval: ""
       });
 
       rows.forEach(row => {
-        // 🔑 NORMALIZE COLUMN ACCESS
         const reg =
           row["REGISTER NO"] ||
           row["REGISTER NUMBER"] ||
-          row["Register No"] ||
           row["Reg No"];
 
         const name =
           row["STUDENT NAME"] ||
-          row["NAME"] ||
-          row["Student Name"];
+          row["NAME"];
 
         const seat =
           row["DESK NO"] ||
-          row["SEAT"] ||
-          row["Desk No"];
-
-        const hallRaw =
-          row["HALL NO"] ||
-          row["HALL"] ||
-          row["Hall No"];
+          row["SEAT"];
 
         if (!reg || !name || !seat) return;
-
-        // ✂️ CLEAN HALL (handle semicolon)
-        let hall = "";
-        if (hallRaw) {
-          hall = String(hallRaw).split(";")[0].trim();
-        }
 
         finalData.push({
           "REGISTER NUMBER": String(reg).trim().toUpperCase(),
           "NAME": String(name).trim(),
           "SEAT": String(seat).trim(),
-          "HALL": hall || sheetName
+          "HALL": hall,
+          "SIDE": side
         });
       });
     });
@@ -81,6 +105,9 @@ async function uploadExcel(session) {
       return;
     }
 
+    /* =====================================================
+       STEP 3: UPLOAD TO CLOUDFLARE
+       ===================================================== */
     const res = await fetch(
       "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
       {
@@ -101,11 +128,6 @@ async function uploadExcel(session) {
   }
 }
 </script>
-
-
-
-
-
 
 </body>
 </html>

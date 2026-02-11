@@ -29,56 +29,43 @@ async function uploadExcel(session) {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer);
 
+  const regPattern = /^[0-9]{2}[A-Z]{2,}[0-9]+$/;
   let finalData = [];
 
   workbook.SheetNames.forEach(sheetName => {
     const sheet = workbook.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-    if (!rows || rows.length < 5) return;
+    let hallName = "";
 
-    // ---- FIND HEADER ROW ----
-    let headerRowIndex = -1;
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i].map(c => String(c).toUpperCase());
-      if (
-        row.some(c => c.includes("REG")) &&
-        row.some(c => c.includes("NAME")) &&
-        row.some(c => c.includes("SEAT"))
-      ) {
-        headerRowIndex = i;
-        break;
-      }
-    }
-
-    if (headerRowIndex === -1) return;
-
-    const headers = rows[headerRowIndex].map(h =>
-      String(h).trim().toUpperCase()
-    );
-
-    const colIndex = {
-      reg: headers.findIndex(h => h.includes("REG")),
-      name: headers.findIndex(h => h.includes("NAME")),
-      seat: headers.findIndex(h => h.includes("SEAT")),
-      hall: headers.findIndex(h => h.includes("HALL"))
-    };
-
-    // ---- READ DATA ROWS ----
-    for (let i = headerRowIndex + 1; i < rows.length; i++) {
-      const r = rows[i];
-      const reg = r[colIndex.reg];
-      const name = r[colIndex.name];
-
-      if (!reg || !name) continue;
-
-      finalData.push({
-        "REGISTER NUMBER": String(reg).trim(),
-        "NAME": String(name).trim(),
-        "SEAT": colIndex.seat !== -1 ? String(r[colIndex.seat]).trim() : "",
-        "HALL": colIndex.hall !== -1 ? String(r[colIndex.hall]).trim() : ""
+    // First pass: find hall name anywhere
+    rows.forEach(r => {
+      r.forEach(cell => {
+        const val = String(cell).toUpperCase();
+        if (val.includes("HALL")) {
+          hallName = cell.toString().trim();
+        }
       });
-    }
+    });
+
+    // Second pass: find register numbers
+    rows.forEach(r => {
+      r.forEach((cell, idx) => {
+        const value = String(cell).trim().toUpperCase();
+
+        if (regPattern.test(value)) {
+          const seat =
+            r[idx + 1] || r[idx - 1] || "";
+
+          finalData.push({
+            "REGISTER NUMBER": value,
+            "NAME": r[idx + 2] ? String(r[idx + 2]).trim() : "",
+            "SEAT": String(seat).trim(),
+            "HALL": hallName
+          });
+        }
+      });
+    });
   });
 
   if (!finalData.length) {
@@ -108,6 +95,7 @@ async function uploadExcel(session) {
   }
 }
 </script>
+
 
 
 

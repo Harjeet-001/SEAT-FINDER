@@ -29,53 +29,59 @@ async function uploadExcel(session) {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer);
 
-  let data = [];
+  let finalData = [];
 
   workbook.SheetNames.forEach(sheetName => {
     const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-    if (!rows || rows.length < 10) return;
+    if (!rows || rows.length < 5) return;
 
-    // ---------- HALL ----------
-    let hall = "UNKNOWN";
-    for (let i = 0; i < 10; i++) {
-      for (let j = 0; j < (rows[i] || []).length; j++) {
-        const cell = rows[i][j];
-        if (typeof cell === "string" && cell.toUpperCase().includes("HALL")) {
-          hall = cell.trim();
-        }
+    // ---- FIND HEADER ROW ----
+    let headerRowIndex = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i].map(c => String(c).toUpperCase());
+      if (
+        row.some(c => c.includes("REG")) &&
+        row.some(c => c.includes("NAME")) &&
+        row.some(c => c.includes("SEAT"))
+      ) {
+        headerRowIndex = i;
+        break;
       }
     }
 
-    // ---------- FIND DATA START ----------
-    const start = rows.findIndex(r =>
-      r.some(c => String(c).toUpperCase().includes("REGISTER"))
+    if (headerRowIndex === -1) return;
+
+    const headers = rows[headerRowIndex].map(h =>
+      String(h).trim().toUpperCase()
     );
 
-    if (start === -1) return;
+    const colIndex = {
+      reg: headers.findIndex(h => h.includes("REG")),
+      name: headers.findIndex(h => h.includes("NAME")),
+      seat: headers.findIndex(h => h.includes("SEAT")),
+      hall: headers.findIndex(h => h.includes("HALL"))
+    };
 
-    // ---------- READ STUDENTS ----------
-    for (let i = start + 1; i < rows.length; i++) {
-      const row = rows[i];
-      if (!row || row.length < 3) continue;
-
-      const seat = row[0];
-      const reg = row[1];
-      const name = row[2];
+    // ---- READ DATA ROWS ----
+    for (let i = headerRowIndex + 1; i < rows.length; i++) {
+      const r = rows[i];
+      const reg = r[colIndex.reg];
+      const name = r[colIndex.name];
 
       if (!reg || !name) continue;
 
-      data.push({
+      finalData.push({
         "REGISTER NUMBER": String(reg).trim(),
         "NAME": String(name).trim(),
-        "HALL": hall,
-        "SEAT": seat ? String(seat).trim() : ""
+        "SEAT": colIndex.seat !== -1 ? String(r[colIndex.seat]).trim() : "",
+        "HALL": colIndex.hall !== -1 ? String(r[colIndex.hall]).trim() : ""
       });
     }
   });
 
-  if (!data.length) {
+  if (!finalData.length) {
     alert("No valid seating data found");
     return;
   }
@@ -85,7 +91,10 @@ async function uploadExcel(session) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session, data })
+      body: JSON.stringify({
+        session,
+        data: finalData
+      })
     }
   );
 
@@ -99,6 +108,7 @@ async function uploadExcel(session) {
   }
 }
 </script>
+
 
 
 

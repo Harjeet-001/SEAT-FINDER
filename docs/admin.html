@@ -31,51 +31,67 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      /* -------- SAFE HALL DETECTION -------- */
-      let detectedHall = "";
-
-      Object.keys(sheet).forEach(cell => {
-        if (cell.startsWith("!")) return;
-        const cellObj = sheet[cell];
-        if (!cellObj || typeof cellObj.v !== "string") return;
-
-        const text = cellObj.v.trim();
-        if (text.toUpperCase().startsWith("HALL NO")) {
-          detectedHall = text.split(":").slice(1).join(":").trim();
-        }
-      });
-
-      /* -------- READ RAW ROWS -------- */
+      // ---------- READ RAW ----------
       const rows = XLSX.utils.sheet_to_json(sheet, {
         header: 1,
         defval: ""
       });
 
-      rows.forEach(row => {
-        /*
-          VERIFIED FROM YOUR EXCEL:
-          col 1 → REGISTER NO
-          col 2 → STUDENT NAME
-          col 3 → DESK NO
-        */
-        const reg = row[1];
-        const name = row[2];
-        const seat = row[3];
+      let headerRowIndex = -1;
+      let colMap = {};
+      let hall = "";
+
+      // ---------- FIND HALL ----------
+      rows.slice(0, 10).forEach(r => {
+        r.forEach(c => {
+          if (typeof c === "string" && c.toUpperCase().startsWith("HALL NO")) {
+            hall = c.split(":").slice(1).join(":").trim();
+          }
+        });
+      });
+
+      // ---------- FIND HEADER ROW ----------
+      rows.forEach((row, i) => {
+        const joined = row.join(" ").toUpperCase();
+        if (
+          joined.includes("REGISTER") &&
+          joined.includes("STUDENT") &&
+          joined.includes("DESK")
+        ) {
+          headerRowIndex = i;
+          row.forEach((cell, idx) => {
+            const key = String(cell).toUpperCase().trim();
+            if (key.includes("REGISTER")) colMap.reg = idx;
+            if (key.includes("STUDENT")) colMap.name = idx;
+            if (key.includes("DESK")) colMap.seat = idx;
+          });
+        }
+      });
+
+      if (headerRowIndex === -1) return;
+
+      // ---------- READ STUDENT ROWS ----------
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+
+        const reg  = row[colMap.reg];
+        const name = row[colMap.name];
+        const seat = row[colMap.seat];
 
         if (
           typeof reg !== "string" ||
           reg.trim().length < 5 ||
           !name ||
           !seat
-        ) return;
+        ) continue;
 
         finalData.push({
           "REGISTER NUMBER": reg.trim().toUpperCase(),
           "NAME": String(name).trim(),
           "SEAT": String(seat).trim(),
-          "HALL": detectedHall
+          "HALL": hall
         });
-      });
+      }
     });
 
     if (!finalData.length) {

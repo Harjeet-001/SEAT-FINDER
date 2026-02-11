@@ -31,40 +31,53 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      // READ RAW ROWS (NO HEADERS)
+      // READ USING HEADERS
       const rows = XLSX.utils.sheet_to_json(sheet, {
-        header: 1,
         defval: ""
       });
 
-      if (rows.length < 7) return;
+      rows.forEach(row => {
+        // 🔑 NORMALIZE COLUMN ACCESS
+        const reg =
+          row["REGISTER NO"] ||
+          row["REGISTER NUMBER"] ||
+          row["Register No"] ||
+          row["Reg No"];
 
-      // 🔥 FIXED LOCATION VALUES (VERIFIED)
-      const hall = String(rows[3][4] || "").replace(/\n/g, " ").trim();
-      const side = String(rows[4][0] || "").trim();
+        const name =
+          row["STUDENT NAME"] ||
+          row["NAME"] ||
+          row["Student Name"];
 
-      // STUDENT DATA STARTS FROM ROW 6
-      for (let i = 6; i < rows.length; i++) {
-        const row = rows[i];
+        const seat =
+          row["DESK NO"] ||
+          row["SEAT"] ||
+          row["Desk No"];
 
-        const desk = row[1];
-        const reg = row[2];
-        const name = row[3];
+        const hallRaw =
+          row["HALL NO"] ||
+          row["HALL"] ||
+          row["Hall No"];
 
-        if (!reg || !name || !desk) continue;
+        if (!reg || !name || !seat) return;
+
+        // ✂️ CLEAN HALL (handle semicolon)
+        let hall = "";
+        if (hallRaw) {
+          hall = String(hallRaw).split(";")[0].trim();
+        }
 
         finalData.push({
           "REGISTER NUMBER": String(reg).trim().toUpperCase(),
           "NAME": String(name).trim(),
-          "SEAT": String(desk).trim(),
-          "HALL": hall,
-          "SIDE": side
+          "SEAT": String(seat).trim(),
+          "HALL": hall || sheetName
         });
-      }
+      });
     });
 
     if (!finalData.length) {
-      alert("❌ No valid seating data found");
+      alert("No valid seating data found");
       return;
     }
 
@@ -79,7 +92,7 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(`✅ ${session} uploaded (${finalData.length} students)`);
+    alert(`${session} uploaded successfully (${finalData.length} records)`);
     fileInput.value = "";
 
   } catch (err) {
@@ -88,6 +101,9 @@ async function uploadExcel(session) {
   }
 }
 </script>
+
+
+
 
 
 

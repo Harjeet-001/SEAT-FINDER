@@ -31,60 +31,49 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      /* ---------------- READ NORMAL ROW DATA (WORKING PART – UNCHANGED) ---------------- */
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-      /* ---------------- 🔥 ONLY NEW PART: DETECT HALL FROM SHEET TEXT ---------------- */
+      /* ---------------- HALL DETECTION ---------------- */
       let detectedHall = "";
 
-     let detectedHall = "";
+      for (const cell in sheet) {
+        if (cell.startsWith("!")) continue;
+        const value = String(sheet[cell].v || "");
+        if (value.toUpperCase().includes("HALL NO")) {
+          detectedHall = value.split(":").slice(1).join(":").trim();
+          break;
+        }
+      }
 
-for (const cellAddress in sheet) {
-  if (cellAddress.startsWith("!")) continue;
+      /* ---------------- READ RAW ROWS ---------------- */
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        defval: ""
+      });
 
-  const cellValue = String(sheet[cellAddress].v || "").toUpperCase();
-
-  if (cellValue.includes("HALL NO")) {
-    detectedHall = sheet[cellAddress].v
-      .toString()
-      .split(":")
-      .slice(1)
-      .join(":")
-      .trim();
-    break;
-  }
-}
-
-if (!detectedHall) {
-  console.error("❌ Hall not detected in sheet:", sheetName);
-}
-
-
-      /* ---------------- PROCESS STUDENT ROWS (UNCHANGED) ---------------- */
       rows.forEach(row => {
-        const reg =
-          row["REGISTER NO"] ||
-          row["REGISTER NUMBER"] ||
-          row["Register No"] ||
-          row["Reg No"];
+        /*
+          VERIFIED STRUCTURE (from your Excel):
+          row[0] → Sl No / empty
+          row[1] → REGISTER NO
+          row[2] → STUDENT NAME
+          row[3] → DESK NO
+        */
 
-        const name =
-          row["STUDENT NAME"] ||
-          row["NAME"] ||
-          row["Student Name"];
+        const reg = row[1];
+        const name = row[2];
+        const seat = row[3];
 
-        const seat =
-          row["DESK NO"] ||
-          row["SEAT"] ||
-          row["Desk No"];
-
-        if (!reg || !name || !seat) return;
+        if (
+          typeof reg !== "string" ||
+          reg.trim().length < 5 ||
+          !name ||
+          !seat
+        ) return;
 
         finalData.push({
-          "REGISTER NUMBER": String(reg).trim().toUpperCase(),
+          "REGISTER NUMBER": reg.trim().toUpperCase(),
           "NAME": String(name).trim(),
           "SEAT": String(seat).trim(),
-          "HALL": detectedHall || sheetName
+          "HALL": detectedHall
         });
       });
     });
@@ -114,6 +103,7 @@ if (!detectedHall) {
   }
 }
 </script>
+
 
 </body>
 </html>

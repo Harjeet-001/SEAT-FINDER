@@ -30,28 +30,48 @@ async function uploadExcel(session) {
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
+
+      // READ USING HEADERS
       const rows = XLSX.utils.sheet_to_json(sheet, {
-        header: 1,
         defval: ""
       });
 
-      const hall = extractHall(rows) || sheetName;
-
       rows.forEach(row => {
-        if (!Array.isArray(row) || row.length < 4) return;
+        // 🔑 NORMALIZE COLUMN ACCESS
+        const reg =
+          row["REGISTER NO"] ||
+          row["REGISTER NUMBER"] ||
+          row["Register No"] ||
+          row["Reg No"];
 
-        // 🔥 FLEXIBLE COLUMN DETECTION
-        const reg = row.find(c => typeof c === "string" && /[A-Z0-9]{6,}/i.test(c));
-        const name = row.find(c => typeof c === "string" && /^[A-Za-z ]{3,}$/.test(c));
-        const seat = row.find(c => typeof c === "number" || /^[A-Z]?\d+$/.test(c));
+        const name =
+          row["STUDENT NAME"] ||
+          row["NAME"] ||
+          row["Student Name"];
+
+        const seat =
+          row["DESK NO"] ||
+          row["SEAT"] ||
+          row["Desk No"];
+
+        const hallRaw =
+          row["HALL NO"] ||
+          row["HALL"] ||
+          row["Hall No"];
 
         if (!reg || !name || !seat) return;
 
+        // ✂️ CLEAN HALL (handle semicolon)
+        let hall = "";
+        if (hallRaw) {
+          hall = String(hallRaw).split(";")[0].trim();
+        }
+
         finalData.push({
-          "REGISTER NUMBER": reg.trim().toUpperCase(),
-          "NAME": name.trim(),
+          "REGISTER NUMBER": String(reg).trim().toUpperCase(),
+          "NAME": String(name).trim(),
           "SEAT": String(seat).trim(),
-          "HALL": hall
+          "HALL": hall || sheetName
         });
       });
     });
@@ -79,19 +99,6 @@ async function uploadExcel(session) {
     console.error(err);
     alert("Upload failed – check console");
   }
-}
-
-function extractHall(rows) {
-  for (let i = 0; i < Math.min(rows.length, 5); i++) {
-    if (!Array.isArray(rows[i])) continue;
-    for (const cell of rows[i]) {
-      const text = String(cell || "");
-      if (text.toLowerCase().includes("hall")) {
-        return text.trim();
-      }
-    }
-  }
-  return null;
 }
 </script>
 

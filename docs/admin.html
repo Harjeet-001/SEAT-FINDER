@@ -30,22 +30,29 @@ async function uploadExcel(session) {
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        defval: ""
+      });
 
-      rows.forEach(r => {
-        // Excel structure you uploaded
-        const reg = r["Unnamed: 2"];
-        const name = r["Unnamed: 3"];
-        const seat = r["Unnamed: 1"];
+      const hall = extractHall(rows) || sheetName;
 
-        if (reg && name && seat) {
-          finalData.push({
-            REGISTER_NUMBER: String(reg).trim(),
-            NAME: String(name).trim(),
-            SEAT: String(seat).trim(),
-            HALL: sheetName.trim()   // hall from sheet name
-          });
-        }
+      rows.forEach(row => {
+        if (!Array.isArray(row) || row.length < 4) return;
+
+        // 🔥 FLEXIBLE COLUMN DETECTION
+        const reg = row.find(c => typeof c === "string" && /[A-Z0-9]{6,}/i.test(c));
+        const name = row.find(c => typeof c === "string" && /^[A-Za-z ]{3,}$/.test(c));
+        const seat = row.find(c => typeof c === "number" || /^[A-Z]?\d+$/.test(c));
+
+        if (!reg || !name || !seat) return;
+
+        finalData.push({
+          "REGISTER NUMBER": reg.trim().toUpperCase(),
+          "NAME": name.trim(),
+          "SEAT": String(seat).trim(),
+          "HALL": hall
+        });
       });
     });
 
@@ -65,13 +72,26 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(session + " uploaded successfully");
+    alert(`${session} uploaded successfully (${finalData.length} records)`);
     fileInput.value = "";
 
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    console.error(err);
     alert("Upload failed – check console");
   }
+}
+
+function extractHall(rows) {
+  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+    if (!Array.isArray(rows[i])) continue;
+    for (const cell of rows[i]) {
+      const text = String(cell || "");
+      if (text.toLowerCase().includes("hall")) {
+        return text.trim();
+      }
+    }
+  }
+  return null;
 }
 </script>
 

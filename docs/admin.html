@@ -26,88 +26,83 @@ async function uploadExcel(session) {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
 
-    /* =====================================================
-       STEP 1: EXTRACT HALL + SIDE FROM FIRST SHEET ONLY
-       ===================================================== */
+    /* ===============================
+       1️⃣ EXTRACT HALL + SIDE (Sheet 1)
+       =============================== */
     let hall = "";
     let side = "";
 
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const firstRows = XLSX.utils.sheet_to_json(firstSheet, {
+    const metaSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const metaRows = XLSX.utils.sheet_to_json(metaSheet, {
       header: 1,
       defval: ""
     });
 
-    for (let i = 0; i < 10; i++) {
-      for (let j = 0; j < firstRows[i].length; j++) {
-        const cell = String(firstRows[i][j]).toUpperCase();
+    for (let r = 0; r < 10; r++) {
+      for (let c = 0; c < metaRows[r].length; c++) {
+        const cell = String(metaRows[r][c]).toUpperCase();
 
-        // HALL
         if (cell.includes("HALL") && cell.includes("FLOOR")) {
-          hall = String(firstRows[i][j])
-            .split(":")
-            .slice(1)
-            .join(":")
-            .trim();
+          hall = metaRows[r][c].split(":").slice(1).join(":").trim();
         }
 
-        // SIDE (LEFT / RIGHT)
         if (cell.includes("LEFT")) side = "LEFT";
         if (cell.includes("RIGHT")) side = "RIGHT";
       }
     }
 
     if (!hall) {
-      alert("Hall not found in first sheet. Check Excel format.");
+      alert("❌ Hall not detected. Check first sheet.");
       return;
     }
 
-    /* =====================================================
-       STEP 2: READ STUDENT DATA FROM ALL SHEETS
-       ===================================================== */
+    /* ===============================
+       2️⃣ EXTRACT STUDENT DATA (ALL SHEETS)
+       COLUMN INDEX (VERIFIED):
+       0 → SL NO
+       1 → REGISTER NO
+       2 → STUDENT NAME
+       3 → DESK NO
+       =============================== */
     let finalData = [];
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
-
       const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
         defval: ""
       });
 
       rows.forEach(row => {
-        const reg =
-          row["REGISTER NO"] ||
-          row["REGISTER NUMBER"] ||
-          row["Reg No"];
+        const reg  = row[1];
+        const name = row[2];
+        const seat = row[3];
 
-        const name =
-          row["STUDENT NAME"] ||
-          row["NAME"];
-
-        const seat =
-          row["DESK NO"] ||
-          row["SEAT"];
-
-        if (!reg || !name || !seat) return;
-
-        finalData.push({
-          "REGISTER NUMBER": String(reg).trim().toUpperCase(),
-          "NAME": String(name).trim(),
-          "SEAT": String(seat).trim(),
-          "HALL": hall,
-          "SIDE": side
-        });
+        if (
+          typeof reg === "string" &&
+          reg.trim().length > 5 &&
+          typeof name === "string" &&
+          seat !== ""
+        ) {
+          finalData.push({
+            "REGISTER NUMBER": reg.trim().toUpperCase(),
+            "NAME": name.trim(),
+            "SEAT": String(seat).trim(),
+            "HALL": hall,
+            "SIDE": side
+          });
+        }
       });
     });
 
     if (!finalData.length) {
-      alert("No valid seating data found");
+      alert("❌ No valid seating data found");
       return;
     }
 
-    /* =====================================================
-       STEP 3: UPLOAD TO CLOUDFLARE
-       ===================================================== */
+    /* ===============================
+       3️⃣ UPLOAD
+       =============================== */
     const res = await fetch(
       "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
       {
@@ -119,7 +114,7 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(`${session} uploaded successfully (${finalData.length} records)`);
+    alert(`✅ ${session} uploaded (${finalData.length} students)`);
     fileInput.value = "";
 
   } catch (err) {

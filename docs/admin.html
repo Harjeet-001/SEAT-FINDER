@@ -29,14 +29,65 @@ async function uploadExcel(session) {
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer);
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet);
 
-    if (!rows.length) {
-      alert("Excel file is empty");
+    let finalData = [];
+
+    // 🔴 LOOP THROUGH ALL SHEETS
+    workbook.SheetNames.forEach(sheetName => {
+      const sheet = workbook.Sheets[sheetName];
+
+      // Read raw rows (important)
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      if (!rows || rows.length < 5) return;
+
+      // ---------- FIND HALL ----------
+      let hall = "UNKNOWN";
+      for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < (rows[i] || []).length; j++) {
+          const cell = rows[i][j];
+          if (
+            typeof cell === "string" &&
+            cell.toUpperCase().includes("HALL")
+          ) {
+            hall = cell.trim();
+          }
+        }
+      }
+
+      // ---------- FIND HEADER ROW ----------
+      const headerIndex = rows.findIndex(r =>
+        r.join(" ").toUpperCase().includes("REGISTER")
+      );
+
+      if (headerIndex === -1) return;
+
+      // ---------- PARSE STUDENT DATA ----------
+      for (let i = headerIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 3) continue;
+
+        const seat = row[0];
+        const reg = row[1];
+        const name = row[2];
+
+        if (!reg || !name) continue;
+
+        finalData.push({
+          "REGISTER NUMBER": String(reg).trim(),
+          "NAME": String(name).trim(),
+          "HALL": hall,
+          "SEAT": seat ? String(seat).trim() : ""
+        });
+      }
+    });
+
+    if (!finalData.length) {
+      alert("No valid seating data found");
       return;
     }
 
+    // ---------- SEND TO API ----------
     const res = await fetch(
       "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
       {
@@ -44,20 +95,16 @@ async function uploadExcel(session) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session: session,
-          data: rows
+          data: finalData
         })
       }
     );
-
-    if (!res.ok) {
-      throw new Error("Server error");
-    }
 
     const out = await res.json();
 
     if (out.status === "ok") {
       alert(session + " upload successful");
-      fileInput.value = ""; // reset input
+      fileInput.value = "";
     } else {
       alert("Upload failed");
     }
@@ -68,6 +115,7 @@ async function uploadExcel(session) {
   }
 }
 </script>
+
 
 </body>
 </html>

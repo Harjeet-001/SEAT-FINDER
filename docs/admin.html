@@ -31,19 +31,21 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      /* ---------------- HALL DETECTION ---------------- */
+      /* -------- SAFE HALL DETECTION -------- */
       let detectedHall = "";
 
-      for (const cell in sheet) {
-        if (cell.startsWith("!")) continue;
-        const value = String(sheet[cell].v || "");
-        if (value.toUpperCase().includes("HALL NO")) {
-          detectedHall = value.split(":").slice(1).join(":").trim();
-          break;
-        }
-      }
+      Object.keys(sheet).forEach(cell => {
+        if (cell.startsWith("!")) return;
+        const cellObj = sheet[cell];
+        if (!cellObj || typeof cellObj.v !== "string") return;
 
-      /* ---------------- READ RAW ROWS ---------------- */
+        const text = cellObj.v.trim();
+        if (text.toUpperCase().startsWith("HALL NO")) {
+          detectedHall = text.split(":").slice(1).join(":").trim();
+        }
+      });
+
+      /* -------- READ RAW ROWS -------- */
       const rows = XLSX.utils.sheet_to_json(sheet, {
         header: 1,
         defval: ""
@@ -51,13 +53,11 @@ async function uploadExcel(session) {
 
       rows.forEach(row => {
         /*
-          VERIFIED STRUCTURE (from your Excel):
-          row[0] → Sl No / empty
-          row[1] → REGISTER NO
-          row[2] → STUDENT NAME
-          row[3] → DESK NO
+          VERIFIED FROM YOUR EXCEL:
+          col 1 → REGISTER NO
+          col 2 → STUDENT NAME
+          col 3 → DESK NO
         */
-
         const reg = row[1];
         const name = row[2];
         const seat = row[3];
@@ -103,6 +103,7 @@ async function uploadExcel(session) {
   }
 }
 </script>
+
 
 
 </body>

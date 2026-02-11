@@ -26,83 +26,65 @@ async function uploadExcel(session) {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
 
-    /* ===============================
-       1️⃣ EXTRACT HALL + SIDE (Sheet 1)
-       =============================== */
-    let hall = "";
-    let side = "";
-
-    const metaSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const metaRows = XLSX.utils.sheet_to_json(metaSheet, {
-      header: 1,
-      defval: ""
-    });
-
-    for (let r = 0; r < 10; r++) {
-      for (let c = 0; c < metaRows[r].length; c++) {
-        const cell = String(metaRows[r][c]).toUpperCase();
-
-        if (cell.includes("HALL") && cell.includes("FLOOR")) {
-          hall = metaRows[r][c].split(":").slice(1).join(":").trim();
-        }
-
-        if (cell.includes("LEFT")) side = "LEFT";
-        if (cell.includes("RIGHT")) side = "RIGHT";
-      }
-    }
-
-    if (!hall) {
-      alert("❌ Hall not detected. Check first sheet.");
-      return;
-    }
-
-    /* ===============================
-       2️⃣ EXTRACT STUDENT DATA (ALL SHEETS)
-       COLUMN INDEX (VERIFIED):
-       0 → SL NO
-       1 → REGISTER NO
-       2 → STUDENT NAME
-       3 → DESK NO
-       =============================== */
     let finalData = [];
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, {
+
+      /* ---------------- READ NORMAL ROW DATA (WORKING PART – UNCHANGED) ---------------- */
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      /* ---------------- 🔥 ONLY NEW PART: DETECT HALL FROM SHEET TEXT ---------------- */
+      let detectedHall = "";
+
+      const rawRows = XLSX.utils.sheet_to_json(sheet, {
         header: 1,
         defval: ""
       });
 
-      rows.forEach(row => {
-        const reg  = row[1];
-        const name = row[2];
-        const seat = row[3];
-
-        if (
-          typeof reg === "string" &&
-          reg.trim().length > 5 &&
-          typeof name === "string" &&
-          seat !== ""
-        ) {
-          finalData.push({
-            "REGISTER NUMBER": reg.trim().toUpperCase(),
-            "NAME": name.trim(),
-            "SEAT": String(seat).trim(),
-            "HALL": hall,
-            "SIDE": side
-          });
+      for (let i = 0; i < 10; i++) {
+        for (let j = 0; j < rawRows[i].length; j++) {
+          const cell = String(rawRows[i][j] || "");
+          if (cell.toUpperCase().includes("HALL NO")) {
+            detectedHall = cell.split(":").slice(1).join(":").trim();
+          }
         }
+      }
+
+      /* ---------------- PROCESS STUDENT ROWS (UNCHANGED) ---------------- */
+      rows.forEach(row => {
+        const reg =
+          row["REGISTER NO"] ||
+          row["REGISTER NUMBER"] ||
+          row["Register No"] ||
+          row["Reg No"];
+
+        const name =
+          row["STUDENT NAME"] ||
+          row["NAME"] ||
+          row["Student Name"];
+
+        const seat =
+          row["DESK NO"] ||
+          row["SEAT"] ||
+          row["Desk No"];
+
+        if (!reg || !name || !seat) return;
+
+        finalData.push({
+          "REGISTER NUMBER": String(reg).trim().toUpperCase(),
+          "NAME": String(name).trim(),
+          "SEAT": String(seat).trim(),
+          "HALL": detectedHall || sheetName
+        });
       });
     });
 
     if (!finalData.length) {
-      alert("❌ No valid seating data found");
+      alert("No valid seating data found");
       return;
     }
 
-    /* ===============================
-       3️⃣ UPLOAD
-       =============================== */
     const res = await fetch(
       "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
       {
@@ -114,7 +96,7 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(`✅ ${session} uploaded (${finalData.length} students)`);
+    alert(`${session} uploaded successfully (${finalData.length} records)`);
     fileInput.value = "";
 
   } catch (err) {

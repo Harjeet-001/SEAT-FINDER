@@ -18,103 +18,88 @@
 
 <script>
 async function uploadExcel(session) {
-  try {
-    const fileInput = document.getElementById(session + "_file");
-    const file = fileInput.files[0];
+  const fileInput = document.getElementById(session + "_file");
+  const file = fileInput.files[0];
 
-    if (!file) {
-      alert("Select an Excel file first");
-      return;
-    }
+  if (!file) {
+    alert("Select an Excel file");
+    return;
+  }
 
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer);
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer);
 
-    let finalData = [];
+  let data = [];
 
-    // 🔴 LOOP THROUGH ALL SHEETS
-    workbook.SheetNames.forEach(sheetName => {
-      const sheet = workbook.Sheets[sheetName];
+  workbook.SheetNames.forEach(sheetName => {
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      // Read raw rows (important)
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    if (!rows || rows.length < 10) return;
 
-      if (!rows || rows.length < 5) return;
-
-      // ---------- FIND HALL ----------
-      let hall = "UNKNOWN";
-      for (let i = 0; i < 8; i++) {
-        for (let j = 0; j < (rows[i] || []).length; j++) {
-          const cell = rows[i][j];
-          if (
-            typeof cell === "string" &&
-            cell.toUpperCase().includes("HALL")
-          ) {
-            hall = cell.trim();
-          }
+    // ---------- HALL ----------
+    let hall = "UNKNOWN";
+    for (let i = 0; i < 10; i++) {
+      for (let j = 0; j < (rows[i] || []).length; j++) {
+        const cell = rows[i][j];
+        if (typeof cell === "string" && cell.toUpperCase().includes("HALL")) {
+          hall = cell.trim();
         }
       }
-
-      // ---------- FIND HEADER ROW ----------
-      const headerIndex = rows.findIndex(r =>
-        r.join(" ").toUpperCase().includes("REGISTER")
-      );
-
-      if (headerIndex === -1) return;
-
-      // ---------- PARSE STUDENT DATA ----------
-      for (let i = headerIndex + 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length < 3) continue;
-
-        const seat = row[0];
-        const reg = row[1];
-        const name = row[2];
-
-        if (!reg || !name) continue;
-
-        finalData.push({
-          "REGISTER NUMBER": String(reg).trim(),
-          "NAME": String(name).trim(),
-          "HALL": hall,
-          "SEAT": seat ? String(seat).trim() : ""
-        });
-      }
-    });
-
-    if (!finalData.length) {
-      alert("No valid seating data found");
-      return;
     }
 
-    // ---------- SEND TO API ----------
-    const res = await fetch(
-      "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session: session,
-          data: finalData
-        })
-      }
+    // ---------- FIND DATA START ----------
+    const start = rows.findIndex(r =>
+      r.some(c => String(c).toUpperCase().includes("REGISTER"))
     );
 
-    const out = await res.json();
+    if (start === -1) return;
 
-    if (out.status === "ok") {
-      alert(session + " upload successful");
-      fileInput.value = "";
-    } else {
-      alert("Upload failed");
+    // ---------- READ STUDENTS ----------
+    for (let i = start + 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length < 3) continue;
+
+      const seat = row[0];
+      const reg = row[1];
+      const name = row[2];
+
+      if (!reg || !name) continue;
+
+      data.push({
+        "REGISTER NUMBER": String(reg).trim(),
+        "NAME": String(name).trim(),
+        "HALL": hall,
+        "SEAT": seat ? String(seat).trim() : ""
+      });
     }
+  });
 
-  } catch (err) {
-    console.error(err);
-    alert("Upload failed – check console");
+  if (!data.length) {
+    alert("No valid seating data found");
+    return;
+  }
+
+  const res = await fetch(
+    "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session, data })
+    }
+  );
+
+  const out = await res.json();
+
+  if (out.status === "ok") {
+    alert(session + " uploaded successfully");
+    fileInput.value = "";
+  } else {
+    alert("Upload failed");
   }
 }
 </script>
+
 
 
 </body>

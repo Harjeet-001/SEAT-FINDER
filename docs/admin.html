@@ -37,19 +37,28 @@ async function uploadExcel(session) {
       /* ---------------- 🔥 ONLY NEW PART: DETECT HALL FROM SHEET TEXT ---------------- */
       let detectedHall = "";
 
-      const rawRows = XLSX.utils.sheet_to_json(sheet, {
-        header: 1,
-        defval: ""
-      });
+     let detectedHall = "";
 
-      for (let i = 0; i < 10; i++) {
-        for (let j = 0; j < rawRows[i].length; j++) {
-          const cell = String(rawRows[i][j] || "");
-          if (cell.toUpperCase().includes("HALL NO")) {
-            detectedHall = cell.split(":").slice(1).join(":").trim();
-          }
-        }
-      }
+for (const cellAddress in sheet) {
+  if (cellAddress.startsWith("!")) continue;
+
+  const cellValue = String(sheet[cellAddress].v || "").toUpperCase();
+
+  if (cellValue.includes("HALL NO")) {
+    detectedHall = sheet[cellAddress].v
+      .toString()
+      .split(":")
+      .slice(1)
+      .join(":")
+      .trim();
+    break;
+  }
+}
+
+if (!detectedHall) {
+  console.error("❌ Hall not detected in sheet:", sheetName);
+}
+
 
       /* ---------------- PROCESS STUDENT ROWS (UNCHANGED) ---------------- */
       rows.forEach(row => {

@@ -18,83 +18,63 @@
 
 <script>
 async function uploadExcel(session) {
-  const fileInput = document.getElementById(session + "_file");
-  const file = fileInput.files[0];
+  try {
+    const fileInput = document.getElementById(session + "_file");
+    const file = fileInput.files[0];
+    if (!file) return alert("Select an Excel file");
 
-  if (!file) {
-    alert("Select an Excel file");
-    return;
-  }
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
 
-  const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer);
+    let finalData = [];
 
-  const regPattern = /^[0-9]{2}[A-Z]{2,}[0-9]+$/;
-  let finalData = [];
+    workbook.SheetNames.forEach(sheetName => {
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-  workbook.SheetNames.forEach(sheetName => {
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+      rows.forEach(r => {
+        // Excel structure you uploaded
+        const reg = r["Unnamed: 2"];
+        const name = r["Unnamed: 3"];
+        const seat = r["Unnamed: 1"];
 
-    let hallName = "";
-
-    // First pass: find hall name anywhere
-    rows.forEach(r => {
-      r.forEach(cell => {
-        const val = String(cell).toUpperCase();
-        if (val.includes("HALL")) {
-          hallName = cell.toString().trim();
-        }
-      });
-    });
-
-    // Second pass: find register numbers
-    rows.forEach(r => {
-      r.forEach((cell, idx) => {
-        const value = String(cell).trim().toUpperCase();
-
-        if (regPattern.test(value)) {
-          const seat =
-            r[idx + 1] || r[idx - 1] || "";
-
+        if (reg && name && seat) {
           finalData.push({
-            "REGISTER NUMBER": value,
-            "NAME": r[idx + 2] ? String(r[idx + 2]).trim() : "",
-            "SEAT": String(seat).trim(),
-            "HALL": hallName
+            REGISTER_NUMBER: String(reg).trim(),
+            NAME: String(name).trim(),
+            SEAT: String(seat).trim(),
+            HALL: sheetName.trim()   // hall from sheet name
           });
         }
       });
     });
-  });
 
-  if (!finalData.length) {
-    alert("No valid seating data found");
-    return;
-  }
-
-  const res = await fetch(
-    "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session,
-        data: finalData
-      })
+    if (!finalData.length) {
+      alert("No valid seating data found");
+      return;
     }
-  );
 
-  const out = await res.json();
+    const res = await fetch(
+      "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session, data: finalData })
+      }
+    );
 
-  if (out.status === "ok") {
+    if (!res.ok) throw new Error("Upload failed");
+
     alert(session + " uploaded successfully");
     fileInput.value = "";
-  } else {
-    alert("Upload failed");
+
+  } catch (e) {
+    console.error(e);
+    alert("Upload failed – check console");
   }
 }
 </script>
+
 
 
 

@@ -31,41 +31,44 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      /* 🔥 FIXED HALL DETECTION (RAW CELL READ) */
-      let detectedHall = "";
-      for (const cellAddress in sheet) {
-        if (cellAddress[0] === "!") continue;
-        const cell = sheet[cellAddress];
-        if (
-          cell.v &&
-          String(cell.v).trim().toUpperCase() === "HALL NO:"
-        ) {
-          const col = cellAddress.replace(/[0-9]/g, "");
-          const row = cellAddress.replace(/[A-Z]/g, "");
-          const nextCol = String.fromCharCode(col.charCodeAt(0) + 4);
-          const hallCell = sheet[nextCol + row];
-          if (hallCell && hallCell.v) {
-            detectedHall = String(hallCell.v).trim();
-          }
-          break;
-        }
-      }
-
-      /* KEEP TABULAR READ EXACTLY AS BEFORE */
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        defval: ""
+      });
 
       rows.forEach(row => {
-        const reg = row["REGISTER NO"];
-        const name = row["STUDENT NAME"];
-        const seat = row["DESK NO"];
+        const reg =
+          row["REGISTER NO"] ||
+          row["REGISTER NUMBER"] ||
+          row["Register No"] ||
+          row["Reg No"];
+
+        const name =
+          row["STUDENT NAME"] ||
+          row["NAME"] ||
+          row["Student Name"];
+
+        const seat =
+          row["DESK NO"] ||
+          row["SEAT"] ||
+          row["Desk No"];
+
+        const hallRaw =
+          row["HALL NO"] ||
+          row["HALL"] ||
+          row["Hall No"];
 
         if (!reg || !name || !seat) return;
+
+        let hall = "";
+        if (hallRaw) {
+          hall = String(hallRaw).split(";")[0].trim();
+        }
 
         finalData.push({
           "REGISTER NUMBER": String(reg).trim().toUpperCase(),
           "NAME": String(name).trim(),
           "SEAT": String(seat).trim(),
-          "HALL": detectedHall
+          "HALL": hall || sheetName
         });
       });
     });
@@ -86,7 +89,7 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(${session} uploaded successfully (${finalData.length} records));
+    alert(`${session} uploaded successfully (${finalData.length} records)`);
     fileInput.value = "";
 
   } catch (err) {

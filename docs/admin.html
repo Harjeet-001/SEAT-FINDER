@@ -31,10 +31,10 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      // READ USING HEADERS (KEEP AS-IS)
+      // KEEP HEADER-BASED PARSING (THIS IS WHY 1170 ROWS WORK)
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      // 🔥 EXTRACT HALL FROM FIRST FEW ROWS (FIX)
+      // ✅ DETECT HALL FROM TOP AREA (FIRST SHEET TEXT)
       let detectedHall = "";
 
       for (let i = 0; i < 5 && i < rows.length; i++) {
@@ -92,7 +92,8 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(${session} uploaded successfully (${finalData.length} records));
+    // ✅ THIS WAS THE ONLY BUG — NOW FIXED
+    alert(`${session} uploaded successfully (${finalData.length} records)`);
     fileInput.value = "";
 
   } catch (err) {

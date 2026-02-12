@@ -47,10 +47,16 @@ async function uploadExcel(session) {
 
           // ✅ Capture hall ONLY ONCE
           if (!hall && cell === "HALL NO:") {
-            hall = String(rows[i][j + 1] || "")
-              .replace(/\n/g, " ")
-              .trim();
-          }
+  for (let k = j + 1; k < rows[i].length; k++) {
+    if (rows[i][k] && String(rows[i][k]).trim() !== "") {
+      hall = String(rows[i][k])
+        .replace(/\n/g, " ")
+        .trim();
+      break;
+    }
+  }
+}
+
 
           if (cell === "REGISTER NO") {
             headerRowIndex = i;

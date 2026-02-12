@@ -49,16 +49,25 @@ async function uploadExcel(session) {
       let hall = "";
 
       // 🔎 FIND "HALL NO:" AND READ RIGHT CELL
-      for (let r = 0; r < matrix.length; r++) {
-        for (let c = 0; c < matrix[r].length; c++) {
-          const cell = String(matrix[r][c]).toUpperCase();
-          if (cell.includes("HALL NO")) {
-            hall = String(matrix[r][c + 1] || "").trim();
-            break;
-          }
+      // 🔎 FIND "HALL NO:" AND READ VALUE ANYWHERE TO THE RIGHT (SAME ROW)
+for (let r = 0; r < matrix.length; r++) {
+  for (let c = 0; c < matrix[r].length; c++) {
+    const cell = String(matrix[r][c]).toUpperCase().trim();
+
+    if (cell === "HALL NO:" || cell.includes("HALL NO")) {
+      // scan the rest of the row to the right
+      for (let k = c + 1; k < matrix[r].length; k++) {
+        const possibleHall = String(matrix[r][k]).trim();
+        if (possibleHall) {
+          hall = possibleHall;
+          break;
         }
-        if (hall) break;
       }
+      break;
+    }
+  }
+  if (hall) break;
+}
 
       console.log(`Detected hall (${sheetName}):`, hall);
 

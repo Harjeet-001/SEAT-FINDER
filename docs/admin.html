@@ -6,7 +6,7 @@
 </head>
 <body>
 
-<h2>Admin Panel – Upload Seating Excel</h2>
+<h2>ADMIN – SEATING UPLOAD (CONFIRM MODE)</h2>
 
 <h3>FN Session</h3>
 <input type="file" id="FN_file" accept=".xlsx,.xls">
@@ -18,73 +18,99 @@
 
 <script>
 async function uploadExcel(session) {
+  alert("SCRIPT RUNNING");
+
   try {
     const fileInput = document.getElementById(session + "_file");
     const file = fileInput.files[0];
-    if (!file) return alert("Select an Excel file");
+    if (!file) {
+      alert("NO FILE SELECTED");
+      return;
+    }
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
+
+    console.log("Sheets:", workbook.SheetNames);
 
     let finalData = [];
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      /* -------------------------------
-         🔥 EXTRACT HALL NO CORRECTLY
-         (value is RIGHT of 'HALL NO:')
-      -------------------------------- */
+      // RAW MATRIX READ (IMPORTANT)
+      const matrix = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        defval: ""
+      });
+
+      console.log(`Matrix sample (${sheetName}):`, matrix.slice(0, 10));
+
       let hall = "";
 
-      for (const cellAddr in sheet) {
-        if (cellAddr[0] === "!") continue;
-        const cell = sheet[cellAddr];
-        if (
-          typeof cell.v === "string" &&
-          cell.v.toUpperCase().includes("HALL NO")
-        ) {
-          const col = cellAddr.match(/[A-Z]+/)[0];
-          const row = cellAddr.match(/[0-9]+/)[0];
-
-          const nextCol =
-            XLSX.utils.encode_col(
-              XLSX.utils.decode_col(col) + 1
-            );
-
-          const hallCell = sheet[nextCol + row];
-          if (hallCell && hallCell.v) {
-            hall = String(hallCell.v).trim();
+      // 🔎 FIND "HALL NO:" AND READ RIGHT CELL
+      for (let r = 0; r < matrix.length; r++) {
+        for (let c = 0; c < matrix[r].length; c++) {
+          const cell = String(matrix[r][c]).toUpperCase();
+          if (cell.includes("HALL NO")) {
+            hall = String(matrix[r][c + 1] || "").trim();
+            break;
           }
+        }
+        if (hall) break;
+      }
+
+      console.log(`Detected hall (${sheetName}):`, hall);
+
+      // 🔎 FIND HEADER ROW
+      let headerRowIndex = -1;
+      for (let i = 0; i < matrix.length; i++) {
+        if (
+          matrix[i].includes("REGISTER NO") &&
+          matrix[i].includes("STUDENT NAME") &&
+          matrix[i].includes("DESK NO")
+        ) {
+          headerRowIndex = i;
           break;
         }
       }
 
-      /* -------------------------------
-         READ STUDENT TABLE
-      -------------------------------- */
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      if (headerRowIndex === -1) {
+        console.warn(`Header not found in ${sheetName}`);
+        return;
+      }
 
-      rows.forEach(row => {
-        const reg = row["REGISTER NO"];
-        const name = row["STUDENT NAME"];
-        const seat = row["DESK NO"];
+      const headers = matrix[headerRowIndex];
+      const regIdx = headers.indexOf("REGISTER NO");
+      const nameIdx = headers.indexOf("STUDENT NAME");
+      const seatIdx = headers.indexOf("DESK NO");
 
-        if (!reg || !name || !seat) return;
+      for (let i = headerRowIndex + 1; i < matrix.length; i++) {
+        const row = matrix[i];
+
+        const reg = row[regIdx];
+        const name = row[nameIdx];
+        const seat = row[seatIdx];
+
+        if (!reg || !name || !seat) continue;
 
         finalData.push({
           "REGISTER NUMBER": String(reg).trim().toUpperCase(),
           "NAME": String(name).trim(),
           "SEAT": String(seat).trim(),
-          "HALL": hall || sheetName
+          "HALL": hall
         });
-      });
+      }
     });
 
-    if (!finalData.length) {
-      alert("No valid seating data found");
+    console.log("FINAL COUNT:", finalData.length);
+
+    if (finalData.length === 0) {
+      alert("❌ NO VALID SEATING DATA FOUND");
       return;
     }
+
+    alert(`UPLOADING ${finalData.length} RECORDS`);
 
     const res = await fetch(
       "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
@@ -95,14 +121,13 @@ async function uploadExcel(session) {
       }
     );
 
-    if (!res.ok) throw new Error("Upload failed");
+    if (!res.ok) throw new Error("UPLOAD FAILED");
 
-    alert(`${session} uploaded successfully (${finalData.length} records)`);
-    fileInput.value = "";
+    alert(`✅ ${session} UPLOADED (${finalData.length} RECORDS)`);
 
   } catch (err) {
     console.error(err);
-    alert("Upload failed – check console");
+    alert("❌ ERROR – CHECK CONSOLE");
   }
 }
 </script>

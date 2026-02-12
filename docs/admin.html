@@ -31,38 +31,46 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      const rows = XLSX.utils.sheet_to_json(sheet, {
-        defval: ""
-      });
+      /* -------------------------------
+         🔥 EXTRACT HALL NO CORRECTLY
+         (value is RIGHT of 'HALL NO:')
+      -------------------------------- */
+      let hall = "";
+
+      for (const cellAddr in sheet) {
+        if (cellAddr[0] === "!") continue;
+        const cell = sheet[cellAddr];
+        if (
+          typeof cell.v === "string" &&
+          cell.v.toUpperCase().includes("HALL NO")
+        ) {
+          const col = cellAddr.match(/[A-Z]+/)[0];
+          const row = cellAddr.match(/[0-9]+/)[0];
+
+          const nextCol =
+            XLSX.utils.encode_col(
+              XLSX.utils.decode_col(col) + 1
+            );
+
+          const hallCell = sheet[nextCol + row];
+          if (hallCell && hallCell.v) {
+            hall = String(hallCell.v).trim();
+          }
+          break;
+        }
+      }
+
+      /* -------------------------------
+         READ STUDENT TABLE
+      -------------------------------- */
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
       rows.forEach(row => {
-        const reg =
-          row["REGISTER NO"] ||
-          row["REGISTER NUMBER"] ||
-          row["Register No"] ||
-          row["Reg No"];
-
-        const name =
-          row["STUDENT NAME"] ||
-          row["NAME"] ||
-          row["Student Name"];
-
-        const seat =
-          row["DESK NO"] ||
-          row["SEAT"] ||
-          row["Desk No"];
-
-        const hallRaw =
-          row["HALL NO"] ||
-          row["HALL"] ||
-          row["Hall No"];
+        const reg = row["REGISTER NO"];
+        const name = row["STUDENT NAME"];
+        const seat = row["DESK NO"];
 
         if (!reg || !name || !seat) return;
-
-        let hall = "";
-        if (hallRaw) {
-          hall = String(hallRaw).split(";")[0].trim();
-        }
 
         finalData.push({
           "REGISTER NUMBER": String(reg).trim().toUpperCase(),

@@ -19,14 +19,9 @@
 <script>
 async function uploadExcel(session) {
   try {
-    alert("uploadExcel() called for " + session);
-
     const fileInput = document.getElementById(session + "_file");
     const file = fileInput.files[0];
-    if (!file) {
-      alert("Select an Excel file");
-      return;
-    }
+    if (!file) return alert("Select an Excel file");
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
@@ -36,55 +31,46 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      // ✅ RAW ROWS (THIS IS THE KEY)
+      // READ FULL SHEET AS MATRIX
       const rows = XLSX.utils.sheet_to_json(sheet, {
         header: 1,
         defval: ""
       });
 
-      if (!rows.length) return;
+      let hall = "";
+      let headerRowIndex = -1;
+      let colIndex = {};
 
-      // 🔎 FIND HEADER ROW
-      let headerIndex = -1;
-
+      // 🔍 FIND HALL + HEADER ROW
       for (let i = 0; i < rows.length; i++) {
-        if (
-          rows[i].includes("REGISTER NO") &&
-          rows[i].includes("STUDENT NAME") &&
-          rows[i].includes("DESK NO")
-        ) {
-          headerIndex = i;
-          break;
-        }
-      }
+        for (let j = 0; j < rows[i].length; j++) {
+          const cell = String(rows[i][j]).toUpperCase();
 
-      if (headerIndex === -1) return;
+          if (cell.includes("HALL NO")) {
+            hall = String(rows[i][j + 1] || "")
+              .replace(/\n/g, " ")
+              .trim();
+          }
 
-      const headers = rows[headerIndex];
-
-      const regIdx = headers.indexOf("REGISTER NO");
-      const nameIdx = headers.indexOf("STUDENT NAME");
-      const seatIdx = headers.indexOf("DESK NO");
-
-      // 🔥 EXTRACT HALL FROM TOP ROWS
-      let detectedHall = "";
-
-      for (let i = 0; i < headerIndex; i++) {
-        for (const cell of rows[i]) {
-          const text = String(cell || "");
-          if (text.toUpperCase().includes("HALL NO")) {
-            detectedHall = text.split(":")[1]?.trim();
+          if (cell === "REGISTER NO") {
+            headerRowIndex = i;
+            rows[i].forEach((h, idx) => {
+              colIndex[String(h).toUpperCase().trim()] = idx;
+            });
           }
         }
+        if (hall && headerRowIndex !== -1) break;
       }
 
-      // ✅ READ DATA ROWS
-      for (let i = headerIndex + 1; i < rows.length; i++) {
+      if (headerRowIndex === -1) return;
+
+      // 📌 READ DATA ROWS
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
         const row = rows[i];
 
-        const reg = row[regIdx];
-        const name = row[nameIdx];
-        const seat = row[seatIdx];
+        const reg = row[colIndex["REGISTER NO"]];
+        const name = row[colIndex["STUDENT NAME"]];
+        const seat = row[colIndex["DESK NO"]];
 
         if (!reg || !name || !seat) continue;
 
@@ -92,7 +78,7 @@ async function uploadExcel(session) {
           "REGISTER NUMBER": String(reg).trim().toUpperCase(),
           "NAME": String(name).trim(),
           "SEAT": String(seat).trim(),
-          "HALL": detectedHall || sheetName
+          "HALL": hall || sheetName
         });
       }
     });
@@ -101,8 +87,6 @@ async function uploadExcel(session) {
       alert("❌ No valid seating data found");
       return;
     }
-
-    alert("✅ Parsed records: " + finalData.length);
 
     const res = await fetch(
       "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
@@ -120,7 +104,7 @@ async function uploadExcel(session) {
 
   } catch (err) {
     console.error(err);
-    alert("❌ Upload failed – check console");
+    alert("Upload failed – check console");
   }
 }
 </script>

@@ -1,153 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
   <title>Admin – Upload Seating Data</title>
-
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
-  <style>
-    :root {
-      --bg: #0b0f14;
-      --panel: #111827;
-      --accent: #0ea5e9;
-      --text: #e5e7eb;
-      --muted: #9ca3af;
-      --border: #1f2937;
-    }
-
-    * {
-      box-sizing: border-box;
-      font-family: "Segoe UI", system-ui, sans-serif;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: radial-gradient(circle at top, #0f172a, #020617);
-      color: var(--text);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .container {
-      width: 900px;
-      max-width: 95%;
-    }
-
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-
-    .header h1 {
-      margin: 0;
-      font-size: 28px;
-      color: var(--accent);
-      letter-spacing: 1px;
-    }
-
-    .header p {
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    .card {
-      background: linear-gradient(180deg, #020617, #020617cc);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 24px;
-      margin-bottom: 24px;
-      box-shadow: 0 0 0 1px #020617, 0 20px 40px rgba(0,0,0,0.5);
-    }
-
-    .card h2 {
-      margin-top: 0;
-      margin-bottom: 14px;
-      font-size: 18px;
-      color: var(--accent);
-    }
-
-    .row {
-      display: flex;
-      gap: 14px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    input[type="file"] {
-      flex: 1;
-      background: #020617;
-      border: 1px solid var(--border);
-      padding: 10px;
-      border-radius: 8px;
-      color: var(--text);
-    }
-
-    button {
-      background: linear-gradient(135deg, #0284c7, #0ea5e9);
-      border: none;
-      padding: 10px 22px;
-      border-radius: 10px;
-      color: #020617;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 20px rgba(14,165,233,0.4);
-    }
-
-    footer {
-      text-align: center;
-      margin-top: 30px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-  </style>
 </head>
-
 <body>
 
-<div class="container">
+<h2>Admin Panel – Upload Seating Excel</h2>
 
-  <div class="header">
-    <h1>ADMIN PANEL</h1>
-    <p>Upload & manage exam seating data</p>
-  </div>
+<h3>FN Session</h3>
+<input type="file" id="FN_file" accept=".xlsx,.xls">
+<button onclick="uploadExcel('FN')">Upload FN</button>
 
-  <div class="card">
-    <h2>FN Session</h2>
-    <div class="row">
-      <input type="file" id="FN_file" accept=".xlsx,.xls">
-      <button onclick="uploadExcel('FN')">Upload FN</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>AN Session</h2>
-    <div class="row">
-      <input type="file" id="AN_file" accept=".xlsx,.xls">
-      <button onclick="uploadExcel('AN')">Upload AN</button>
-    </div>
-  </div>
-
-  <footer>
-    Seat Finder Admin • Cloudflare Workers Backend
-  </footer>
-
-</div>
+<h3>AN Session</h3>
+<input type="file" id="AN_file" accept=".xlsx,.xls">
+<button onclick="uploadExcel('AN')">Upload AN</button>
 
 <script>
 async function uploadExcel(session) {
   try {
+    alert("uploadExcel() called for " + session);
+
     const fileInput = document.getElementById(session + "_file");
     const file = fileInput.files[0];
-    if (!file) return alert("Select an Excel file");
+    if (!file) {
+      alert("Select an Excel file");
+      return;
+    }
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
@@ -156,39 +35,58 @@ async function uploadExcel(session) {
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      let detectedHall = "";
+      // ✅ RAW ROWS (THIS IS THE KEY)
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        defval: ""
+      });
 
-      for (let i = 0; i < 5 && i < rows.length; i++) {
-        for (const key in rows[i]) {
-          const cell = String(rows[i][key] || "");
-          if (cell.toUpperCase().includes("HALL NO")) {
-            detectedHall = cell.split(":")[1]?.trim() || "";
-            break;
-          }
+      if (!rows.length) return;
+
+      // 🔎 FIND HEADER ROW
+      let headerIndex = -1;
+
+      for (let i = 0; i < rows.length; i++) {
+        if (
+          rows[i].includes("REGISTER NO") &&
+          rows[i].includes("STUDENT NAME") &&
+          rows[i].includes("DESK NO")
+        ) {
+          headerIndex = i;
+          break;
         }
-        if (detectedHall) break;
       }
 
-      rows.forEach(row => {
-        const reg =
-          row["REGISTER NO"] ||
-          row["REGISTER NUMBER"] ||
-          row["Register No"] ||
-          row["Reg No"];
+      if (headerIndex === -1) return;
 
-        const name =
-          row["STUDENT NAME"] ||
-          row["NAME"] ||
-          row["Student Name"];
+      const headers = rows[headerIndex];
 
-        const seat =
-          row["DESK NO"] ||
-          row["SEAT"] ||
-          row["Desk No"];
+      const regIdx = headers.indexOf("REGISTER NO");
+      const nameIdx = headers.indexOf("STUDENT NAME");
+      const seatIdx = headers.indexOf("DESK NO");
 
-        if (!reg || !name || !seat) return;
+      // 🔥 EXTRACT HALL FROM TOP ROWS
+      let detectedHall = "";
+
+      for (let i = 0; i < headerIndex; i++) {
+        for (const cell of rows[i]) {
+          const text = String(cell || "");
+          if (text.toUpperCase().includes("HALL NO")) {
+            detectedHall = text.split(":")[1]?.trim();
+          }
+        }
+      }
+
+      // ✅ READ DATA ROWS
+      for (let i = headerIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+
+        const reg = row[regIdx];
+        const name = row[nameIdx];
+        const seat = row[seatIdx];
+
+        if (!reg || !name || !seat) continue;
 
         finalData.push({
           "REGISTER NUMBER": String(reg).trim().toUpperCase(),
@@ -196,13 +94,15 @@ async function uploadExcel(session) {
           "SEAT": String(seat).trim(),
           "HALL": detectedHall || sheetName
         });
-      });
+      }
     });
 
     if (!finalData.length) {
-      alert("No valid seating data found");
+      alert("❌ No valid seating data found");
       return;
     }
+
+    alert("✅ Parsed records: " + finalData.length);
 
     const res = await fetch(
       "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
@@ -215,12 +115,12 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(`${session} uploaded successfully (${finalData.length} records)`);
+    alert(`✅ ${session} uploaded successfully (${finalData.length} records)`);
     fileInput.value = "";
 
   } catch (err) {
     console.error(err);
-    alert("Upload failed – check console");
+    alert("❌ Upload failed – check console");
   }
 }
 </script>

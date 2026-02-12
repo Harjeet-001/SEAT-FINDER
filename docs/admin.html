@@ -31,7 +31,6 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      // READ FULL SHEET AS MATRIX
       const rows = XLSX.utils.sheet_to_json(sheet, {
         header: 1,
         defval: ""
@@ -41,12 +40,13 @@ async function uploadExcel(session) {
       let headerRowIndex = -1;
       let colIndex = {};
 
-      // 🔍 FIND HALL + HEADER ROW
+      // 🔍 FIND HALL (FIRST VALID ONE ONLY) + HEADER ROW
       for (let i = 0; i < rows.length; i++) {
         for (let j = 0; j < rows[i].length; j++) {
-          const cell = String(rows[i][j]).toUpperCase();
+          const cell = String(rows[i][j]).toUpperCase().trim();
 
-          if (cell.includes("HALL NO")) {
+          // ✅ Capture hall ONLY ONCE
+          if (!hall && cell === "HALL NO:") {
             hall = String(rows[i][j + 1] || "")
               .replace(/\n/g, " ")
               .trim();
@@ -64,7 +64,7 @@ async function uploadExcel(session) {
 
       if (headerRowIndex === -1) return;
 
-      // 📌 READ DATA ROWS
+      // 📌 READ STUDENT ROWS
       for (let i = headerRowIndex + 1; i < rows.length; i++) {
         const row = rows[i];
 

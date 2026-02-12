@@ -48,36 +48,59 @@ async function uploadExcel(session) {
 
     // 🧠 ROBUST HALL DETECTION (MERGED-CELL SAFE)
 /* ✅ FINAL HALL DETECTION — RAW CELL SCAN (BULLETPROOF) */
+/* ✅ HALL DETECTION — MERGE-AWARE (FINAL, CORRECT) */
 let detectedHall = "";
+
+const merges = sheet["!merges"] || [];
+
+// Step 1: find cell containing "HALL NO:"
+let hallLabelCell = null;
 
 for (const addr in sheet) {
   if (addr[0] === "!") continue;
-
   const cell = sheet[addr];
-  if (!cell.v) continue;
-
-  const value = String(cell.v).trim().toUpperCase();
-
-  if (value === "HALL NO:" || value === "HALL NO") {
-    const col = addr.replace(/[0-9]/g, "");
-    const row = addr.replace(/[A-Z]/g, "");
-
-    // scan ALL columns to the right
-    for (let offset = 1; offset <= 10; offset++) {
-      const nextCol =
-        String.fromCharCode(col.charCodeAt(0) + offset);
-      const hallCell = sheet[nextCol + row];
-
-      if (hallCell && hallCell.v) {
-        detectedHall = String(hallCell.v).trim();
-        break;
-      }
-    }
+  if (
+    cell.v &&
+    String(cell.v).trim().toUpperCase() === "HALL NO:"
+  ) {
+    hallLabelCell = XLSX.utils.decode_cell(addr);
     break;
   }
 }
 
-console.log("✅ DETECTED HALL:", detectedHall);
+// Step 2: find merge containing "HALL NO:"
+if (hallLabelCell) {
+  for (let i = 0; i < merges.length; i++) {
+    const m = merges[i];
+
+    const isSameRow =
+      m.s.r === hallLabelCell.r &&
+      m.e.r === hallLabelCell.r;
+
+    if (
+      isSameRow &&
+      hallLabelCell.c >= m.s.c &&
+      hallLabelCell.c <= m.e.c
+    ) {
+      // Step 3: next merge on same row = HALL VALUE
+      const nextMerge = merges.find(n =>
+        n.s.r === m.s.r && n.s.c > m.e.c
+      );
+
+      if (nextMerge) {
+        const hallCellAddr = XLSX.utils.encode_cell({
+          r: nextMerge.s.r,
+          c: nextMerge.s.c
+        });
+        detectedHall = String(sheet[hallCellAddr]?.v || "").trim();
+      }
+      break;
+    }
+  }
+}
+
+console.log("✅ FINAL HALL:", detectedHall);
+
 
 
 

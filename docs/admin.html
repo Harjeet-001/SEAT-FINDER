@@ -47,14 +47,18 @@ async function uploadExcel(session) {
       console.log(`Matrix sample (${sheetName}):`, matrix.slice(0, 10));
 
     // 🧠 ROBUST HALL DETECTION (MERGED-CELL SAFE)
+// ✅ FINAL HALL DETECTION — MATCHES "HALL NO:"
 let hall = "";
 
-// Step 1: try same-row scan (best case)
 for (let r = 0; r < matrix.length; r++) {
   for (let c = 0; c < matrix[r].length; c++) {
-    const cell = String(matrix[r][c]).toUpperCase().trim();
 
-    if (cell.includes("HALL NO")) {
+    const cell = String(matrix[r][c]).replace(/\s+/g, " ").trim().toUpperCase();
+
+    // STRICT match for label
+    if (cell === "HALL NO:" || cell === "HALL NO :") {
+
+      // 1️⃣ check right cells (same row)
       for (let k = c + 1; k < matrix[r].length; k++) {
         const val = String(matrix[r][k]).trim();
         if (val) {
@@ -62,36 +66,26 @@ for (let r = 0; r < matrix.length; r++) {
           break;
         }
       }
+
+      // 2️⃣ if still empty, check next row (merged-cell case)
+      if (!hall && matrix[r + 1]) {
+        for (let k = c; k < matrix[r + 1].length; k++) {
+          const val = String(matrix[r + 1][k]).trim();
+          if (val) {
+            hall = val;
+            break;
+          }
+        }
+      }
     }
+
     if (hall) break;
   }
   if (hall) break;
 }
 
-// Step 2: fallback — scan entire sheet for hall-like text
-if (!hall) {
-  for (let r = 0; r < matrix.length; r++) {
-    for (let c = 0; c < matrix[r].length; c++) {
-      const val = String(matrix[r][c]).trim();
-      const up = val.toUpperCase();
+console.log("✅ FINAL DETECTED HALL:", hall);
 
-      if (
-        val &&
-        (
-          up.includes("FLOOR") ||
-          up.startsWith("LH") ||
-          up.includes("HALL")
-        )
-      ) {
-        hall = val;
-        break;
-      }
-    }
-    if (hall) break;
-  }
-}
-
-console.log("FINAL DETECTED HALL:", hall);
 
 
       // 🔎 FIND HEADER ROW

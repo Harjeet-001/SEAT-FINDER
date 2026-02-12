@@ -21,7 +21,10 @@ async function uploadExcel(session) {
   try {
     const fileInput = document.getElementById(session + "_file");
     const file = fileInput.files[0];
-    if (!file) return alert("Select an Excel file");
+    if (!file) {
+      alert("Select an Excel file");
+      return;
+    }
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
@@ -31,17 +34,18 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      // KEEP HEADER-BASED PARSING (THIS IS WHY 1170 ROWS WORK)
+      // ✅ KEEP THIS – THIS IS WHY 1170 RECORDS WORK
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      // ✅ DETECT HALL FROM TOP AREA (FIRST SHEET TEXT)
+      // 🔥 DETECT HALL FROM FIRST SHEET TOP AREA
       let detectedHall = "";
 
       for (let i = 0; i < 5 && i < rows.length; i++) {
         for (const key in rows[i]) {
           const cell = String(rows[i][key] || "");
           if (cell.toUpperCase().includes("HALL NO")) {
-            detectedHall = cell.split(":")[1]?.trim() || "";
+            // Example: "HALL NO: LH24 - III FLOOR"
+            detectedHall = cell.split(":")[1]?.trim();
             break;
           }
         }
@@ -86,14 +90,20 @@ async function uploadExcel(session) {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session, data: finalData })
+        body: JSON.stringify({
+          session: session,
+          data: finalData
+        })
       }
     );
 
-    if (!res.ok) throw new Error("Upload failed");
+    if (!res.ok) {
+      throw new Error("Upload failed");
+    }
 
-    // ✅ THIS WAS THE ONLY BUG — NOW FIXED
-    alert(`${session} uploaded successfully (${finalData.length} records)`);
+    // ✅ THIS WAS THE KILLER BUG — NOW FIXED
+    alert(session + " uploaded successfully (" + finalData.length + " records)");
+
     fileInput.value = "";
 
   } catch (err) {

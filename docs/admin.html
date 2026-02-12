@@ -47,31 +47,37 @@ async function uploadExcel(session) {
       console.log(`Matrix sample (${sheetName}):`, matrix.slice(0, 10));
 
     // 🧠 ROBUST HALL DETECTION (MERGED-CELL SAFE)
-// ✅ FINAL HALL DETECTION — MATCHES "HALL NO:"
-// ✅ DEFINITIVE HALL DETECTION (SCAN RIGHT UNTIL VALUE)
-let hall = "";
+/* ✅ FINAL HALL DETECTION — RAW CELL SCAN (BULLETPROOF) */
+let detectedHall = "";
 
-for (let r = 0; r < matrix.length; r++) {
-  for (let c = 0; c < matrix[r].length; c++) {
-    const cell = String(matrix[r][c]).replace(/\s+/g, " ").trim().toUpperCase();
+for (const addr in sheet) {
+  if (addr[0] === "!") continue;
 
-    if (cell === "HALL NO:" || cell === "HALL NO") {
-      // scan ALL cells to the right, not just next one
-      for (let k = c + 1; k < matrix[r].length; k++) {
-        const possibleHall = String(matrix[r][k]).replace(/\s+/g, " ").trim();
-        if (possibleHall) {
-          hall = possibleHall;
-          break;
-        }
+  const cell = sheet[addr];
+  if (!cell.v) continue;
+
+  const value = String(cell.v).trim().toUpperCase();
+
+  if (value === "HALL NO:" || value === "HALL NO") {
+    const col = addr.replace(/[0-9]/g, "");
+    const row = addr.replace(/[A-Z]/g, "");
+
+    // scan ALL columns to the right
+    for (let offset = 1; offset <= 10; offset++) {
+      const nextCol =
+        String.fromCharCode(col.charCodeAt(0) + offset);
+      const hallCell = sheet[nextCol + row];
+
+      if (hallCell && hallCell.v) {
+        detectedHall = String(hallCell.v).trim();
+        break;
       }
     }
-
-    if (hall) break;
+    break;
   }
-  if (hall) break;
 }
 
-console.log("✅ FINAL HALL:", hall);
+console.log("✅ DETECTED HALL:", detectedHall);
 
 
 

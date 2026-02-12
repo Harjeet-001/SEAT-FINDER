@@ -1,125 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
   <title>Admin – Upload Seating Data</title>
-
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
-  <style>
-    * {
-      box-sizing: border-box;
-      font-family: "Segoe UI", Roboto, Arial, sans-serif;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: linear-gradient(135deg, #0f172a, #1e293b);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      color: #e5e7eb;
-    }
-
-    .admin-card {
-      background: #020617;
-      width: 420px;
-      padding: 28px;
-      border-radius: 14px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.45);
-    }
-
-    .admin-card h2 {
-      margin: 0 0 20px;
-      text-align: center;
-      font-size: 22px;
-      letter-spacing: 0.4px;
-    }
-
-    .section {
-      margin-bottom: 22px;
-    }
-
-    .section h3 {
-      margin-bottom: 8px;
-      font-size: 15px;
-      font-weight: 500;
-      color: #cbd5f5;
-    }
-
-    input[type="file"] {
-      width: 100%;
-      padding: 8px;
-      background: #020617;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      color: #cbd5e1;
-      cursor: pointer;
-    }
-
-    input[type="file"]::-webkit-file-upload-button {
-      background: #1e293b;
-      border: none;
-      padding: 6px 10px;
-      color: #e5e7eb;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    button {
-      width: 100%;
-      margin-top: 10px;
-      padding: 10px;
-      border: none;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      color: white;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 18px rgba(37,99,235,0.4);
-    }
-
-    button:active {
-      transform: scale(0.98);
-    }
-
-    .footer-note {
-      text-align: center;
-      margin-top: 14px;
-      font-size: 12px;
-      color: #94a3b8;
-    }
-  </style>
 </head>
-
 <body>
 
-<div class="admin-card">
-  <h2>Admin Panel</h2>
+<h2>Admin Panel – Upload Seating Excel</h2>
 
-  <div class="section">
-    <h3>FN Session Upload</h3>
-    <input type="file" id="FN_file" accept=".xlsx,.xls">
-    <button onclick="uploadExcel('FN')">Upload FN Seating</button>
-  </div>
+<h3>FN Session</h3>
+<input type="file" id="FN_file" accept=".xlsx,.xls">
+<button onclick="uploadExcel('FN')">Upload FN</button>
 
-  <div class="section">
-    <h3>AN Session Upload</h3>
-    <input type="file" id="AN_file" accept=".xlsx,.xls">
-    <button onclick="uploadExcel('AN')">Upload AN Seating</button>
-  </div>
-
-  <div class="footer-note">
-    Seating Allocation System • Admin Access
-  </div>
-</div>
+<h3>AN Session</h3>
+<input type="file" id="AN_file" accept=".xlsx,.xls">
+<button onclick="uploadExcel('AN')">Upload AN</button>
 
 <script>
 async function uploadExcel(session) {
@@ -136,15 +31,19 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
+      /* 🔥 FIXED HALL DETECTION (RAW CELL READ) */
       let detectedHall = "";
       for (const cellAddress in sheet) {
         if (cellAddress[0] === "!") continue;
         const cell = sheet[cellAddress];
-        if (cell.v && String(cell.v).trim().toUpperCase() === "HALL NO:") {
+        if (
+          cell.v &&
+          String(cell.v).trim().toUpperCase() === "HALL NO:"
+        ) {
           const col = cellAddress.replace(/[0-9]/g, "");
           const row = cellAddress.replace(/[A-Z]/g, "");
-          const hallCol = String.fromCharCode(col.charCodeAt(0) + 4);
-          const hallCell = sheet[hallCol + row];
+          const nextCol = String.fromCharCode(col.charCodeAt(0) + 4);
+          const hallCell = sheet[nextCol + row];
           if (hallCell && hallCell.v) {
             detectedHall = String(hallCell.v).trim();
           }
@@ -152,6 +51,7 @@ async function uploadExcel(session) {
         }
       }
 
+      /* KEEP TABULAR READ EXACTLY AS BEFORE */
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
       rows.forEach(row => {

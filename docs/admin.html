@@ -1,69 +1,135 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Admin – Upload Seating Data</title>
+
+  <!-- XLSX LIB -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      padding: 40px;
+    }
+
+    h2 {
+      color: #38bdf8;
+    }
+
+    .box {
+      background: #020617;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+    }
+
+    button {
+      background: #38bdf8;
+      color: #020617;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background: #0ea5e9;
+    }
+  </style>
 </head>
+
 <body>
 
-<h2>Admin Panel – Upload Seating Excel</h2>
+<h2>ADMIN PANEL – DEBUG MODE</h2>
 
-<h3>FN Session</h3>
-<input type="file" id="FN_file" accept=".xlsx,.xls">
-<button onclick="uploadExcel('FN')">Upload FN</button>
+<div class="box">
+  <h3>FN Session</h3>
+  <input type="file" id="FN_file" accept=".xlsx,.xls">
+  <br><br>
+  <button id="uploadFN">Upload FN</button>
+</div>
 
-<h3>AN Session</h3>
-<input type="file" id="AN_file" accept=".xlsx,.xls">
-<button onclick="uploadExcel('AN')">Upload AN</button>
+<div class="box">
+  <h3>AN Session</h3>
+  <input type="file" id="AN_file" accept=".xlsx,.xls">
+  <br><br>
+  <button id="uploadAN">Upload AN</button>
+</div>
 
 <script>
+/* ---------------- HARD PROOFS ---------------- */
+alert("✅ JavaScript is RUNNING");
+
+if (typeof XLSX === "undefined") {
+  alert("❌ XLSX NOT LOADED");
+} else {
+  console.log("✅ XLSX loaded");
+}
+
+/* ---------------- BUTTON BINDING ---------------- */
+document.getElementById("uploadFN").addEventListener("click", () => {
+  uploadExcel("FN");
+});
+
+document.getElementById("uploadAN").addEventListener("click", () => {
+  uploadExcel("AN");
+});
+
+/* ---------------- MAIN FUNCTION ---------------- */
 async function uploadExcel(session) {
+  alert("🚀 uploadExcel() called for " + session);
+
   try {
     const fileInput = document.getElementById(session + "_file");
     const file = fileInput.files[0];
-    if (!file) return alert("Select an Excel file");
+
+    if (!file) {
+      alert("❌ No file selected");
+      return;
+    }
+
+    console.log("📄 File selected:", file.name);
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
+
+    console.log("📘 Sheets found:", workbook.SheetNames);
 
     let finalData = [];
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
-
-      // READ USING HEADERS (KEEP AS-IS)
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      // 🔥 EXTRACT HALL FROM FIRST FEW ROWS (FIX)
+      console.log(`📄 ${sheetName} → rows:`, rows.length);
+
+      if (!rows.length) return;
+
+      // 🔥 Detect hall from first 10 rows (raw scan)
       let detectedHall = "";
 
-      for (let i = 0; i < 5 && i < rows.length; i++) {
+      for (let i = 0; i < Math.min(10, rows.length); i++) {
         for (const key in rows[i]) {
           const cell = String(rows[i][key] || "");
           if (cell.toUpperCase().includes("HALL NO")) {
-            detectedHall = cell.split(":")[1]?.trim() || "";
+            detectedHall = cell.split(":").slice(1).join(":").trim();
             break;
           }
         }
         if (detectedHall) break;
       }
 
+      console.log(`🏫 Hall detected for ${sheetName}:`, detectedHall);
+
       rows.forEach(row => {
-        const reg =
-          row["REGISTER NO"] ||
-          row["REGISTER NUMBER"] ||
-          row["Register No"] ||
-          row["Reg No"];
-
-        const name =
-          row["STUDENT NAME"] ||
-          row["NAME"] ||
-          row["Student Name"];
-
-        const seat =
-          row["DESK NO"] ||
-          row["SEAT"] ||
-          row["Desk No"];
+        const reg = row["REGISTER NO"];
+        const name = row["STUDENT NAME"];
+        const seat = row["DESK NO"];
 
         if (!reg || !name || !seat) return;
 
@@ -76,8 +142,10 @@ async function uploadExcel(session) {
       });
     });
 
+    console.log("✅ FINAL DATA COUNT:", finalData.length);
+
     if (!finalData.length) {
-      alert("No valid seating data found");
+      alert("❌ No valid seating data found");
       return;
     }
 
@@ -90,22 +158,17 @@ async function uploadExcel(session) {
       }
     );
 
-    if (!res.ok) throw new Error("Upload failed");
+    if (!res.ok) throw new Error("Server error");
 
-    alert(${session} uploaded successfully (${finalData.length} records));
+    alert(`✅ ${session} uploaded successfully (${finalData.length} records)`);
     fileInput.value = "";
 
   } catch (err) {
-    console.error(err);
-    alert("Upload failed – check console");
+    console.error("🔥 ERROR:", err);
+    alert("❌ Upload failed — check console");
   }
 }
 </script>
-
-
-
-
-
 
 </body>
 </html>

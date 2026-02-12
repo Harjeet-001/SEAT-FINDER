@@ -1,78 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Admin – Upload Seating Data</title>
+
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
   <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #111827;
+      --accent: #0ea5e9;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #1f2937;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
-      background: linear-gradient(180deg, #bfefff, #d9f4ff);
-      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(circle at top, #0f172a, #020617);
+      color: var(--text);
       display: flex;
       justify-content: center;
       align-items: center;
-      color: #0f172a;
+    }
+
+    .container {
+      width: 900px;
+      max-width: 95%;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+
+    .header p {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
     }
 
     .card {
-      background: rgba(255, 255, 255, 0.9);
-      backdrop-filter: blur(8px);
-      width: 420px;
-      border-radius: 20px;
-      padding: 30px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+      background: linear-gradient(180deg, #020617, #020617cc);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 0 0 1px #020617, 0 20px 40px rgba(0,0,0,0.5);
     }
 
-    h2 {
-      text-align: center;
-      margin-bottom: 20px;
-      color: #1e3a8a;
+    .card h2 {
+      margin-top: 0;
+      margin-bottom: 14px;
+      font-size: 18px;
+      color: var(--accent);
     }
 
-    h3 {
-      margin-top: 20px;
-      margin-bottom: 8px;
-      color: #2563eb;
+    .row {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
     }
 
     input[type="file"] {
-      width: 100%;
-      margin-bottom: 10px;
+      flex: 1;
+      background: #020617;
+      border: 1px solid var(--border);
+      padding: 10px;
+      border-radius: 8px;
+      color: var(--text);
     }
 
     button {
-      width: 100%;
-      padding: 14px;
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: white;
-      background: #3574b6;
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
       border: none;
-      border-radius: 14px;
+      padding: 10px 22px;
+      border-radius: 10px;
+      color: #020617;
+      font-weight: 600;
       cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
     button:hover {
-      background: #1e5fa3;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(14,165,233,0.4);
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 30px;
+      font-size: 12px;
+      color: var(--muted);
     }
   </style>
 </head>
 
 <body>
 
-<div class="card">
-  <h2>Admin Panel</h2>
+<div class="container">
 
-  <h3>FN Session</h3>
-  <input type="file" id="FN_file" accept=".xlsx,.xls">
-  <button onclick="uploadExcel('FN')">Upload FN</button>
+  <div class="header">
+    <h1>ADMIN PANEL</h1>
+    <p>Upload & manage exam seating data</p>
+  </div>
 
-  <h3>AN Session</h3>
-  <input type="file" id="AN_file" accept=".xlsx,.xls">
-  <button onclick="uploadExcel('AN')">Upload AN</button>
+  <div class="card">
+    <h2>FN Session</h2>
+    <div class="row">
+      <input type="file" id="FN_file" accept=".xlsx,.xls">
+      <button onclick="uploadExcel('FN')">Upload FN</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>AN Session</h2>
+    <div class="row">
+      <input type="file" id="AN_file" accept=".xlsx,.xls">
+      <button onclick="uploadExcel('AN')">Upload AN</button>
+    </div>
+  </div>
+
+  <footer>
+    Seat Finder Admin • Cloudflare Workers Backend
+  </footer>
+
 </div>
 
 <script>
@@ -80,10 +147,7 @@ async function uploadExcel(session) {
   try {
     const fileInput = document.getElementById(session + "_file");
     const file = fileInput.files[0];
-    if (!file) {
-      alert("Select an Excel file first");
-      return;
-    }
+    if (!file) return alert("Select an Excel file");
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
@@ -92,33 +156,20 @@ async function uploadExcel(session) {
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      /* ---------------- EXTRACT HALL NO (HEADER AREA) ---------------- */
       let detectedHall = "";
-      const range = XLSX.utils.decode_range(sheet["!ref"]);
 
-      for (let r = range.s.r; r <= Math.min(range.s.r + 5, range.e.r); r++) {
-        for (let c = range.s.c; c <= range.e.c; c++) {
-          const addr = XLSX.utils.encode_cell({ r, c });
-          const cell = sheet[addr];
-          if (!cell || !cell.v) continue;
-
-          const value = String(cell.v).toUpperCase().trim();
-          if (value === "HALL NO:" || value === "HALL NO") {
-            const rightCell = sheet[
-              XLSX.utils.encode_cell({ r, c: c + 1 })
-            ];
-            if (rightCell && rightCell.v) {
-              detectedHall = String(rightCell.v).trim();
-              break;
-            }
+      for (let i = 0; i < 5 && i < rows.length; i++) {
+        for (const key in rows[i]) {
+          const cell = String(rows[i][key] || "");
+          if (cell.toUpperCase().includes("HALL NO")) {
+            detectedHall = cell.split(":")[1]?.trim() || "";
+            break;
           }
         }
         if (detectedHall) break;
       }
-
-      /* ---------------- READ TABLE DATA (UNCHANGED LOGIC) ---------------- */
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
       rows.forEach(row => {
         const reg =

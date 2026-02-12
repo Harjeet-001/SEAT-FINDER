@@ -46,30 +46,53 @@ async function uploadExcel(session) {
 
       console.log(`Matrix sample (${sheetName}):`, matrix.slice(0, 10));
 
-      let hall = "";
+    // 🧠 ROBUST HALL DETECTION (MERGED-CELL SAFE)
+let hall = "";
 
-      // 🔎 FIND "HALL NO:" AND READ RIGHT CELL
-      // 🔎 FIND "HALL NO:" AND READ VALUE ANYWHERE TO THE RIGHT (SAME ROW)
+// Step 1: try same-row scan (best case)
 for (let r = 0; r < matrix.length; r++) {
   for (let c = 0; c < matrix[r].length; c++) {
     const cell = String(matrix[r][c]).toUpperCase().trim();
 
-    if (cell === "HALL NO:" || cell.includes("HALL NO")) {
-      // scan the rest of the row to the right
+    if (cell.includes("HALL NO")) {
       for (let k = c + 1; k < matrix[r].length; k++) {
-        const possibleHall = String(matrix[r][k]).trim();
-        if (possibleHall) {
-          hall = possibleHall;
+        const val = String(matrix[r][k]).trim();
+        if (val) {
+          hall = val;
           break;
         }
       }
-      break;
     }
+    if (hall) break;
   }
   if (hall) break;
 }
 
-      console.log(`Detected hall (${sheetName}):`, hall);
+// Step 2: fallback — scan entire sheet for hall-like text
+if (!hall) {
+  for (let r = 0; r < matrix.length; r++) {
+    for (let c = 0; c < matrix[r].length; c++) {
+      const val = String(matrix[r][c]).trim();
+      const up = val.toUpperCase();
+
+      if (
+        val &&
+        (
+          up.includes("FLOOR") ||
+          up.startsWith("LH") ||
+          up.includes("HALL")
+        )
+      ) {
+        hall = val;
+        break;
+      }
+    }
+    if (hall) break;
+  }
+}
+
+console.log("FINAL DETECTED HALL:", hall);
+
 
       // 🔎 FIND HEADER ROW
       let headerRowIndex = -1;

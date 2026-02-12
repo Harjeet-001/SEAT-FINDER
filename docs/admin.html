@@ -86,7 +86,7 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(`${session} uploaded successfully (${finalData.length} records)`);
+    alert(${session} uploaded successfully (${finalData.length} records));
     fileInput.value = "";
 
   } catch (err) {

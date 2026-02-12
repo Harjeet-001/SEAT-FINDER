@@ -31,66 +31,47 @@ async function uploadExcel(session) {
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
 
-      const rows = XLSX.utils.sheet_to_json(sheet, {
-        header: 1,
-        defval: ""
-      });
-
-      let hall = "";
-      let headerRowIndex = -1;
-      let colIndex = {};
-
-      // 🔍 FIND HALL (FIRST VALID ONE ONLY) + HEADER ROW
-      for (let i = 0; i < rows.length; i++) {
-        for (let j = 0; j < rows[i].length; j++) {
-          const cell = String(rows[i][j]).toUpperCase().trim();
-
-          // ✅ Capture hall ONLY ONCE
-          if (!hall && cell === "HALL NO:") {
-  for (let k = j + 1; k < rows[i].length; k++) {
-    if (rows[i][k] && String(rows[i][k]).trim() !== "") {
-      hall = String(rows[i][k])
-        .replace(/\n/g, " ")
-        .trim();
-      break;
-    }
-  }
-}
-
-
-          if (cell === "REGISTER NO") {
-            headerRowIndex = i;
-            rows[i].forEach((h, idx) => {
-              colIndex[String(h).toUpperCase().trim()] = idx;
-            });
+      /* 🔥 FIXED HALL DETECTION (RAW CELL READ) */
+      let detectedHall = "";
+      for (const cellAddress in sheet) {
+        if (cellAddress[0] === "!") continue;
+        const cell = sheet[cellAddress];
+        if (
+          cell.v &&
+          String(cell.v).trim().toUpperCase() === "HALL NO:"
+        ) {
+          const col = cellAddress.replace(/[0-9]/g, "");
+          const row = cellAddress.replace(/[A-Z]/g, "");
+          const nextCol = String.fromCharCode(col.charCodeAt(0) + 4);
+          const hallCell = sheet[nextCol + row];
+          if (hallCell && hallCell.v) {
+            detectedHall = String(hallCell.v).trim();
           }
+          break;
         }
-        if (hall && headerRowIndex !== -1) break;
       }
 
-      if (headerRowIndex === -1) return;
+      /* KEEP TABULAR READ EXACTLY AS BEFORE */
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      // 📌 READ STUDENT ROWS
-      for (let i = headerRowIndex + 1; i < rows.length; i++) {
-        const row = rows[i];
+      rows.forEach(row => {
+        const reg = row["REGISTER NO"];
+        const name = row["STUDENT NAME"];
+        const seat = row["DESK NO"];
 
-        const reg = row[colIndex["REGISTER NO"]];
-        const name = row[colIndex["STUDENT NAME"]];
-        const seat = row[colIndex["DESK NO"]];
-
-        if (!reg || !name || !seat) continue;
+        if (!reg || !name || !seat) return;
 
         finalData.push({
           "REGISTER NUMBER": String(reg).trim().toUpperCase(),
           "NAME": String(name).trim(),
           "SEAT": String(seat).trim(),
-          "HALL": hall || sheetName
+          "HALL": detectedHall
         });
-      }
+      });
     });
 
     if (!finalData.length) {
-      alert("❌ No valid seating data found");
+      alert("No valid seating data found");
       return;
     }
 
@@ -105,7 +86,7 @@ async function uploadExcel(session) {
 
     if (!res.ok) throw new Error("Upload failed");
 
-    alert(`✅ ${session} uploaded successfully (${finalData.length} records)`);
+    alert(`${session} uploaded successfully (${finalData.length} records)`);
     fileInput.value = "";
 
   } catch (err) {

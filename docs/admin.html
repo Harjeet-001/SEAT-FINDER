@@ -18,7 +18,7 @@
 
 <script>
 async function uploadExcel(session) {
-  alert("SCRIPT RUNNING");
+  //alert("SCRIPT RUNNING");
 
   try {
     const fileInput = document.getElementById(session + "_file");
@@ -152,7 +152,7 @@ console.log("✅ FINAL HALL:", detectedHall);
       return;
     }
 
-    alert(`UPLOADING ${finalData.length} RECORDS`);
+    //alert(`UPLOADING ${finalData.length} RECORDS`);
 
     const res = await fetch(
       "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",

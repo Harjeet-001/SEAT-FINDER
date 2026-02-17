@@ -1,25 +1,122 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Admin – Upload Seating Data</title>
+
+  <!-- XLSX LIBRARY (DO NOT TOUCH) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(135deg, #020617, #0f172a);
+      color: #e5e7eb;
+    }
+
+    .admin-container {
+      background: #020617;
+      width: 420px;
+      padding: 28px;
+      border-radius: 14px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 25px;
+      letter-spacing: 1px;
+    }
+
+    .session-box {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+
+    .session-box h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 16px;
+      color: #93c5fd;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      margin-bottom: 12px;
+      padding: 6px;
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #334155;
+      border-radius: 6px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(37,99,235,0.35);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .footer-note {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 11px;
+      color: #64748b;
+    }
+  </style>
 </head>
+
 <body>
 
-<h2>ADMIN – SEATING UPLOAD </h2>
+<div class="admin-container">
+  <h2>ADMIN – SEATING UPLOAD</h2>
 
-<h3>FN Session</h3>
-<input type="file" id="FN_file" accept=".xlsx,.xls">
-<button onclick="uploadExcel('FN')">Upload FN</button>
+  <div class="session-box">
+    <h3>FN Session</h3>
+    <input type="file" id="FN_file" accept=".xlsx,.xls">
+    <button onclick="uploadExcel('FN')">Upload FN</button>
+  </div>
 
-<h3>AN Session</h3>
-<input type="file" id="AN_file" accept=".xlsx,.xls">
-<button onclick="uploadExcel('AN')">Upload AN</button>
+  <div class="session-box">
+    <h3>AN Session</h3>
+    <input type="file" id="AN_file" accept=".xlsx,.xls">
+    <button onclick="uploadExcel('AN')">Upload AN</button>
+  </div>
+
+  <div class="footer-note">
+    Admin panel • Excel (.xlsx / .xls)
+  </div>
+</div>
 
 <script>
 async function uploadExcel(session) {
-  //alert("SCRIPT RUNNING");
-
   try {
     const fileInput = document.getElementById(session + "_file");
     const file = fileInput.files[0];
@@ -30,129 +127,85 @@ async function uploadExcel(session) {
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
-
-    console.log("Sheets:", workbook.SheetNames);
-
     let finalData = [];
 
     workbook.SheetNames.forEach(sheetName => {
       const sheet = workbook.Sheets[sheetName];
+      const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-      // RAW MATRIX READ (IMPORTANT)
-      const matrix = XLSX.utils.sheet_to_json(sheet, {
-        header: 1,
-        defval: ""
-      });
+      // ----- HALL DETECTION (UNCHANGED) -----
+      let detectedHall = "";
+      const merges = sheet["!merges"] || [];
+      let hallLabelCell = null;
 
-      console.log(`Matrix sample (${sheetName}):`, matrix.slice(0, 10));
-
-    // 🧠 ROBUST HALL DETECTION (MERGED-CELL SAFE)
-/* ✅ FINAL HALL DETECTION — RAW CELL SCAN (BULLETPROOF) */
-/* ✅ HALL DETECTION — MERGE-AWARE (FINAL, CORRECT) */
-let detectedHall = "";
-
-const merges = sheet["!merges"] || [];
-
-// Step 1: find cell containing "HALL NO:"
-let hallLabelCell = null;
-
-for (const addr in sheet) {
-  if (addr[0] === "!") continue;
-  const cell = sheet[addr];
-  if (
-    cell.v &&
-    String(cell.v).trim().toUpperCase() === "HALL NO:"
-  ) {
-    hallLabelCell = XLSX.utils.decode_cell(addr);
-    break;
-  }
-}
-
-// Step 2: find merge containing "HALL NO:"
-if (hallLabelCell) {
-  for (let i = 0; i < merges.length; i++) {
-    const m = merges[i];
-
-    const isSameRow =
-      m.s.r === hallLabelCell.r &&
-      m.e.r === hallLabelCell.r;
-
-    if (
-      isSameRow &&
-      hallLabelCell.c >= m.s.c &&
-      hallLabelCell.c <= m.e.c
-    ) {
-      // Step 3: next merge on same row = HALL VALUE
-      const nextMerge = merges.find(n =>
-        n.s.r === m.s.r && n.s.c > m.e.c
-      );
-
-      if (nextMerge) {
-        const hallCellAddr = XLSX.utils.encode_cell({
-          r: nextMerge.s.r,
-          c: nextMerge.s.c
-        });
-        detectedHall = String(sheet[hallCellAddr]?.v || "").trim();
+      for (const addr in sheet) {
+        if (addr[0] === "!") continue;
+        const cell = sheet[addr];
+        if (cell.v && String(cell.v).trim().toUpperCase() === "HALL NO:") {
+          hallLabelCell = XLSX.utils.decode_cell(addr);
+          break;
+        }
       }
-      break;
-    }
-  }
-}
 
-console.log("✅ FINAL HALL:", detectedHall);
+      if (hallLabelCell) {
+        for (const m of merges) {
+          if (
+            m.s.r === hallLabelCell.r &&
+            hallLabelCell.c >= m.s.c &&
+            hallLabelCell.c <= m.e.c
+          ) {
+            const nextMerge = merges.find(n =>
+              n.s.r === m.s.r && n.s.c > m.e.c
+            );
+            if (nextMerge) {
+              const hallAddr = XLSX.utils.encode_cell({
+                r: nextMerge.s.r,
+                c: nextMerge.s.c
+              });
+              detectedHall = String(sheet[hallAddr]?.v || "").trim();
+            }
+            break;
+          }
+        }
+      }
 
-
-
-
-      // 🔎 FIND HEADER ROW
-      let headerRowIndex = -1;
+      // ----- HEADER DETECTION -----
+      let headerRow = -1;
       for (let i = 0; i < matrix.length; i++) {
         if (
           matrix[i].includes("REGISTER NO") &&
           matrix[i].includes("STUDENT NAME") &&
           matrix[i].includes("DESK NO")
         ) {
-          headerRowIndex = i;
+          headerRow = i;
           break;
         }
       }
 
-      if (headerRowIndex === -1) {
-        console.warn(`Header not found in ${sheetName}`);
-        return;
-      }
+      if (headerRow === -1) return;
 
-      const headers = matrix[headerRowIndex];
-      const regIdx = headers.indexOf("REGISTER NO");
-      const nameIdx = headers.indexOf("STUDENT NAME");
-      const seatIdx = headers.indexOf("DESK NO");
+      const headers = matrix[headerRow];
+      const r = headers.indexOf("REGISTER NO");
+      const n = headers.indexOf("STUDENT NAME");
+      const s = headers.indexOf("DESK NO");
 
-      for (let i = headerRowIndex + 1; i < matrix.length; i++) {
+      for (let i = headerRow + 1; i < matrix.length; i++) {
         const row = matrix[i];
-
-        const reg = row[regIdx];
-        const name = row[nameIdx];
-        const seat = row[seatIdx];
-
-        if (!reg || !name || !seat) continue;
+        if (!row[r] || !row[n] || !row[s]) continue;
 
         finalData.push({
-          "REGISTER NUMBER": String(reg).trim().toUpperCase(),
-          "NAME": String(name).trim(),
-          "SEAT": String(seat).trim(),
+          "REGISTER NUMBER": String(row[r]).trim().toUpperCase(),
+          "NAME": String(row[n]).trim(),
+          "SEAT": String(row[s]).trim(),
           "HALL": detectedHall
         });
       }
     });
 
-    console.log("FINAL COUNT:", finalData.length);
-
     if (finalData.length === 0) {
       alert("❌ NO VALID SEATING DATA FOUND");
       return;
     }
-
-    //alert(`UPLOADING ${finalData.length} RECORDS`);
 
     const res = await fetch(
       "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",

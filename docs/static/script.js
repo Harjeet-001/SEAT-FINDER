@@ -33,6 +33,7 @@ function findSeat() {
             <p><b>Name:</b> ${data.FN.name}</p>
             <p><b>Hall:</b> ${data.FN.hall}</p>
             <p><b>Seat:</b> ${data.FN.seat}</p>
+            <p><span>Side:</span> ${data.FN.side}</p>
           </div>
         `;
       }
@@ -44,6 +45,7 @@ function findSeat() {
             <p><b>Name:</b> ${data.AN.name}</p>
             <p><b>Hall:</b> ${data.AN.hall}</p>
             <p><b>Seat:</b> ${data.AN.seat}</p>
+            <p><span>Side:</span> ${data.AN.side}</p>
           </div>
         `;
       }

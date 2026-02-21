@@ -199,40 +199,34 @@ async function uploadExcel(session) {
         }
       }
       // ----- SIDE DETECTION (LEFT / RIGHT) -----
-// ----- SIDE DETECTION (COLUMN-ANCHOR, ACTUALLY CORRECT) -----
+// ----- SIDE DETECTION (MERGE-BASED, ACTUALLY CORRECT) -----
 let detectedSide = "";
 
-// find REGISTER NO column
-const regCol = matrix[headerRow].indexOf("REGISTER NO");
+const mergesAboveHeader = (sheet["!merges"] || []).filter(m => m.e.r < headerRow);
 
-if (regCol !== -1) {
-  for (let r = headerRow - 1; r >= 0; r--) {
-    const addr = XLSX.utils.encode_cell({ r, c: regCol });
-    const cell = sheet[addr];
-    if (!cell || !cell.v) continue;
+for (const m of mergesAboveHeader) {
+  const addr = XLSX.utils.encode_cell({ r: m.s.r, c: m.s.c });
+  const cell = sheet[addr];
+  if (!cell || !cell.v) continue;
 
-    const raw = String(cell.v)
-      .toUpperCase()
-      .replace(/\s+/g, " ")
-      .trim();
+  const raw = String(cell.v)
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
 
-    if (raw.includes("LEFT")) {
-      detectedSide = "LEFT";
-      break;
-    }
+  if (raw.includes("LEFT")) {
+    detectedSide = "LEFT";
+    break;
+  }
 
-    if (raw.includes("RIGHT")) {
-      detectedSide = "RIGHT";
-      break;
-    }
-
-    // stop if we hit unrelated labels
-    if (raw.includes("HALL") || raw.includes("CLASS")) break;
+  if (raw.includes("RIGHT")) {
+    detectedSide = "RIGHT";
+    break;
   }
 }
 
 if (!detectedSide) {
-  console.warn(`❌ SIDE NOT FOUND | sheet=${sheetName}`);
+  console.warn(`❌ SIDE NOT FOUND (MERGE READ FAILED) | sheet=${sheetName}`);
 }
 
       if (headerRow === -1) return;

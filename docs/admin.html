@@ -199,27 +199,37 @@ async function uploadExcel(session) {
         }
       }
       // ----- SIDE DETECTION (LEFT / RIGHT) -----
-// ----- SIDE DETECTION (MERGED-CELL SAFE) -----
+// ----- SIDE DETECTION (POSITION-CORRECT & MERGE-SAFE) -----
 let detectedSide = "";
 
-if (headerRow > 0) {
-  const sideRow = matrix[headerRow - 1];
+for (let r = headerRow - 1; r >= 0; r--) {
+  const row = matrix[r];
 
-  // find first non-empty cell in that row
-  const sideText = sideRow.find(cell => String(cell).trim() !== "");
+  // find any non-empty cell in the row
+  const cellText = row.find(c => String(c).trim() !== "");
+  if (!cellText) continue; // empty row, skip
 
-  const rawSide = String(sideText || "")
+  const raw = String(cellText)
     .toUpperCase()
     .replace(/\s+/g, " ")
     .trim();
 
-  if (rawSide.includes("LEFT")) {
+  if (raw.includes("LEFT")) {
     detectedSide = "LEFT";
-  } else if (rawSide.includes("RIGHT")) {
-    detectedSide = "RIGHT";
-  } else {
-    console.warn(`⚠ SIDE NOT DETECTED | text="${rawSide}" | sheet=${sheetName}`);
+    break;
   }
+
+  if (raw.includes("RIGHT")) {
+    detectedSide = "RIGHT";
+    break;
+  }
+
+  // stop if we hit unrelated content (hall, class, etc.)
+  if (raw.includes("HALL") || raw.includes("CLASS")) break;
+}
+
+if (!detectedSide) {
+  console.warn(`⚠ SIDE NOT FOUND in sheet: ${sheetName}`);
 }
 
       if (headerRow === -1) return;

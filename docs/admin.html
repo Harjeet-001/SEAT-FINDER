@@ -203,10 +203,17 @@ let detectedSide = "";
 
 if (headerRow > 0) {
   const sideRow = matrix[headerRow - 1];
+
   for (const cell of sideRow) {
-    const val = String(cell).trim().toUpperCase();
-    if (val === "LEFT" || val === "RIGHT") {
-      detectedSide = val;
+    const val = String(cell).toUpperCase();
+
+    if (val.includes("LEFT")) {
+      detectedSide = "LEFT";
+      break;
+    }
+
+    if (val.includes("RIGHT")) {
+      detectedSide = "RIGHT";
       break;
     }
   }
@@ -227,7 +234,7 @@ if (headerRow > 0) {
           "REGISTER NUMBER": String(row[r]).trim().toUpperCase(),
           "NAME": String(row[n]).trim(),
           "SEAT": String(row[s]).trim(),
-          "HALL": detectedHall
+          "HALL": detectedHall,
           "SIDE": detectedSide
         });
       }

@@ -199,37 +199,40 @@ async function uploadExcel(session) {
         }
       }
       // ----- SIDE DETECTION (LEFT / RIGHT) -----
-// ----- SIDE DETECTION (POSITION-CORRECT & MERGE-SAFE) -----
+// ----- SIDE DETECTION (COLUMN-ANCHOR, ACTUALLY CORRECT) -----
 let detectedSide = "";
 
-for (let r = headerRow - 1; r >= 0; r--) {
-  const row = matrix[r];
+// find REGISTER NO column
+const regCol = matrix[headerRow].indexOf("REGISTER NO");
 
-  // find any non-empty cell in the row
-  const cellText = row.find(c => String(c).trim() !== "");
-  if (!cellText) continue; // empty row, skip
+if (regCol !== -1) {
+  for (let r = headerRow - 1; r >= 0; r--) {
+    const addr = XLSX.utils.encode_cell({ r, c: regCol });
+    const cell = sheet[addr];
+    if (!cell || !cell.v) continue;
 
-  const raw = String(cellText)
-    .toUpperCase()
-    .replace(/\s+/g, " ")
-    .trim();
+    const raw = String(cell.v)
+      .toUpperCase()
+      .replace(/\s+/g, " ")
+      .trim();
 
-  if (raw.includes("LEFT")) {
-    detectedSide = "LEFT";
-    break;
+    if (raw.includes("LEFT")) {
+      detectedSide = "LEFT";
+      break;
+    }
+
+    if (raw.includes("RIGHT")) {
+      detectedSide = "RIGHT";
+      break;
+    }
+
+    // stop if we hit unrelated labels
+    if (raw.includes("HALL") || raw.includes("CLASS")) break;
   }
-
-  if (raw.includes("RIGHT")) {
-    detectedSide = "RIGHT";
-    break;
-  }
-
-  // stop if we hit unrelated content (hall, class, etc.)
-  if (raw.includes("HALL") || raw.includes("CLASS")) break;
 }
 
 if (!detectedSide) {
-  console.warn(`⚠ SIDE NOT FOUND in sheet: ${sheetName}`);
+  console.warn(`❌ SIDE NOT FOUND | sheet=${sheetName}`);
 }
 
       if (headerRow === -1) return;

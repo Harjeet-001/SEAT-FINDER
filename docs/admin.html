@@ -199,23 +199,21 @@ async function uploadExcel(session) {
         }
       }
       // ----- SIDE DETECTION (LEFT / RIGHT) -----
+// ----- SIDE DETECTION (SPELLING-SAFE) -----
 let detectedSide = "";
 
 if (headerRow > 0) {
-  const sideRow = matrix[headerRow - 1];
+  const rawSide = String(matrix[headerRow - 1][0] || "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")   // normalize spaces
+    .trim();
 
-  for (const cell of sideRow) {
-    const val = String(cell).toUpperCase();
-
-    if (val.includes("LEFT")) {
-      detectedSide = "LEFT";
-      break;
-    }
-
-    if (val.includes("RIGHT")) {
-      detectedSide = "RIGHT";
-      break;
-    }
+  if (rawSide.includes("LEFT")) {
+    detectedSide = "LEFT";
+  } else if (rawSide.includes("RIGHT")) {
+    detectedSide = "RIGHT";
+  } else {
+    console.warn(`⚠ UNKNOWN SIDE TEXT: "${rawSide}" in sheet ${sheetName}`);
   }
 }
 

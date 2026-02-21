@@ -198,6 +198,19 @@ async function uploadExcel(session) {
           break;
         }
       }
+      // ----- SIDE DETECTION (LEFT / RIGHT) -----
+let detectedSide = "";
+
+if (headerRow > 0) {
+  const sideRow = matrix[headerRow - 1];
+  for (const cell of sideRow) {
+    const val = String(cell).trim().toUpperCase();
+    if (val === "LEFT" || val === "RIGHT") {
+      detectedSide = val;
+      break;
+    }
+  }
+}
 
       if (headerRow === -1) return;
 
@@ -215,6 +228,7 @@ async function uploadExcel(session) {
           "NAME": String(row[n]).trim(),
           "SEAT": String(row[s]).trim(),
           "HALL": detectedHall
+          "SIDE": detectedSide
         });
       }
     });

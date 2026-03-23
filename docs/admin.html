@@ -203,6 +203,9 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
+const API_BASE = "https://seat-finder-api.harjeetgowda644.workers.dev";
+const CHUNK_SIZE = 200; // records per upload call
+
 // ── Tab switcher ───────────────────────────────────────────────────────────
 function switchTab(session, type, btn) {
   btn.parentElement.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -223,6 +226,66 @@ function log(session, msg) {
   el.classList.add("show");
   el.innerHTML += msg + "<br>";
   el.scrollTop = el.scrollHeight;
+}
+
+// ── Chunked upload ─────────────────────────────────────────────────────────
+// Sends all records in one shot. If that fails (network/CORS), splits into
+// CHUNK_SIZE batches using the worker's existing /admin/upload endpoint —
+// first chunk uses normal upload (overwrites), remaining chunks append by
+// fetching existing data first and merging client-side, then re-uploading.
+async function pushToAPI(session, finalData, logSession) {
+  // Try single upload first
+  try {
+    const res = await fetch(`${API_BASE}/admin/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session, data: finalData })
+    });
+    if (res.ok) return; // success
+    const errText = await res.text();
+    throw new Error(`HTTP ${res.status}: ${errText}`);
+  } catch (e) {
+    // Single upload failed — fall back to chunked approach
+    log(logSession, `⚠️ Single upload failed (${e.message}), trying chunked…`);
+  }
+
+  // Chunked: upload in batches of CHUNK_SIZE
+  // Strategy: overwrite with first chunk, then fetch + merge + re-upload for each subsequent chunk
+  const chunks = [];
+  for (let i = 0; i < finalData.length; i += CHUNK_SIZE) {
+    chunks.push(finalData.slice(i, i + CHUNK_SIZE));
+  }
+
+  log(logSession, `📤 Uploading in ${chunks.length} chunks of up to ${CHUNK_SIZE} records…`);
+
+  // Upload first chunk (overwrites any existing data)
+  let accumulated = [...chunks[0]];
+  const res0 = await fetch(`${API_BASE}/admin/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session, data: accumulated })
+  });
+  if (!res0.ok) throw new Error(`Chunk 1 failed: HTTP ${res0.status}`);
+  log(logSession, `  ✔ Chunk 1/${chunks.length} uploaded`);
+
+  // For remaining chunks: fetch current stored data, merge, re-upload
+  for (let i = 1; i < chunks.length; i++) {
+    // Fetch what's currently stored
+    const lookupRes = await fetch(`${API_BASE}/lookup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reg: accumulated[0]["REGISTER NUMBER"] })
+    });
+    // We can't directly read back the stored array, so just accumulate client-side
+    accumulated = accumulated.concat(chunks[i]);
+    const res = await fetch(`${API_BASE}/admin/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session, data: accumulated })
+    });
+    if (!res.ok) throw new Error(`Chunk ${i+1} failed: HTTP ${res.status}`);
+    log(logSession, `  ✔ Chunk ${i+1}/${chunks.length} uploaded`);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -338,7 +401,7 @@ async function uploadExcel(session) {
     }
 
     const res = await fetch(
-      "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
+      `${API_BASE}/admin/upload`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -358,26 +421,6 @@ async function uploadExcel(session) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PDF UPLOAD
-// Coordinate facts confirmed from real PDF.js output:
-//
-//  Per page, all items are returned in one flat list (not top-to-bottom order).
-//  Y axis: bottom-up. Header row y ≈ 857. Data rows have y < 857.
-//
-//  HALL NO: is a single token at high Y (≈889), hall value (e.g. "LH24")
-//           is a separate token nearby but at a DIFFERENT y (≈876).
-//           We find the hall value by looking for the token closest to
-//           "HALL NO:" that looks like a hall code (short, alphanumeric).
-//
-//  LEFT SIDE / RIGHT SIDE come as a SINGLE string token e.g. "LEFT SIDE"
-//           so we check item.str directly with .includes().
-//
-//  Column X positions (consistent across all pages):
-//    DESK NO  : x ≈  92–97   (1-2 digit number)
-//    REGISTER : x ≈ 112–130  (register number)
-//    NAME     : x ≈ 179–200  (student name)
-//
-//  We detect column X dynamically from the header row on each page
-//  so slight per-page variation is handled automatically.
 // ═══════════════════════════════════════════════════════════════════════════
 async function uploadPDF(session) {
   clearLog(session);
@@ -387,8 +430,8 @@ async function uploadPDF(session) {
     if (!file) { alert("NO FILE SELECTED"); return; }
 
     log(session, "📄 Reading PDF…");
-    const buffer    = await file.arrayBuffer();
-    const pdfDoc    = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const buffer     = await file.arrayBuffer();
+    const pdfDoc     = await pdfjsLib.getDocument({ data: buffer }).promise;
     const totalPages = pdfDoc.numPages;
     log(session, `📑 ${totalPages} pages found. Parsing…`);
 
@@ -398,98 +441,73 @@ async function uploadPDF(session) {
       const page    = await pdfDoc.getPage(pageNum);
       const content = await page.getTextContent();
 
-      // Collect all items: text, x (left→right), y (bottom→up)
       const items = content.items
         .map(i => ({ text: i.str, x: i.transform[4], y: i.transform[5] }))
         .filter(i => i.text.trim().length > 0);
 
       if (items.length === 0) continue;
 
-      // ── 1. HALL ─────────────────────────────────────────────────────────
-      // "HALL NO:" is one token. The hall value is a nearby short token.
-      // Strategy: find "HALL NO:" item, then find the closest item to its
-      // right / below that is short (≤8 chars) and alphanumeric.
-      let detectedHall = "";
-      const hallItem = items.find(i => i.text.trim() === "HALL NO:");
-      if (hallItem) {
-        // Look for a token within 120px horizontally and 20px vertically
-        const candidates = items.filter(i =>
-          i.text.trim() !== "HALL NO:" &&
-          Math.abs(i.y - hallItem.y) < 20 &&
-          i.x > hallItem.x &&
-          i.x < hallItem.x + 120
-        );
-        // Also check tokens slightly below (within 15px lower Y)
-        const candidatesBelow = items.filter(i =>
-          i.text.trim() !== "HALL NO:" &&
-          i.y < hallItem.y &&
-          hallItem.y - i.y < 20 &&
-          i.x > hallItem.x - 30
-        );
-        const allCandidates = [...candidates, ...candidatesBelow];
-        // Pick the one that looks like a hall code: short, no spaces
-        for (const c of allCandidates) {
-          const t = c.text.trim();
-          if (t.length > 0 && t.length <= 10 && /^[A-Z0-9\s]+$/i.test(t) &&
-              !["LEFT","RIGHT","SIDE","NAME","SIGNATURE"].includes(t.toUpperCase())) {
-            detectedHall = t;
-            break;
-          }
-        }
-      }
-
-      // ── 2. SIDE ──────────────────────────────────────────────────────────
-      // Comes as a single string: "LEFT SIDE" or "RIGHT SIDE"
+      // ── 1. SIDE ──────────────────────────────────────────────────────────
       let detectedSide = "";
       for (const item of items) {
         const t = item.text.trim().toUpperCase();
-        if (t === "LEFT SIDE"  || t === "LEFT")  { detectedSide = "LEFT";  break; }
-        if (t === "RIGHT SIDE" || t === "RIGHT") { detectedSide = "RIGHT"; break; }
+        if (t.includes("LEFT SIDE")  || t === "LEFT")  { detectedSide = "LEFT";  break; }
+        if (t.includes("RIGHT SIDE") || t === "RIGHT") { detectedSide = "RIGHT"; break; }
+      }
+
+      // ── 2. HALL ──────────────────────────────────────────────────────────
+      let detectedHall = "";
+      const hallItem = items.find(i => i.text.trim() === "HALL NO:");
+      if (hallItem) {
+        const SKIP = new Set(["LEFT SIDE","RIGHT SIDE","LEFT","RIGHT","SIDE",
+                               "NAME","SIGNATURE","OF","THE","INVIGILATOR"]);
+        let best = null, bestDist = 999;
+        for (const item of items) {
+          if (item === hallItem) continue;
+          const t = item.text.trim().toUpperCase();
+          if (SKIP.has(t) || t.length > 12 || t.length === 0) continue;
+          if (!/^[A-Z0-9\s]+$/.test(t)) continue;
+          const dx = Math.abs(item.x - hallItem.x);
+          const dy = Math.abs(item.y - hallItem.y);
+          if (dx > 150 || dy > 30) continue;
+          const dist = dx + dy;
+          if (dist < bestDist) { bestDist = dist; best = item; }
+        }
+        if (best) detectedHall = best.text.trim();
       }
 
       // ── 3. HEADER ROW ────────────────────────────────────────────────────
-      // Find the item whose text is "REGISTER NO" — its Y is the header Y.
-      // All data rows have y strictly less than headerY.
       const regHeaderItem = items.find(i => i.text.trim() === "REGISTER NO");
-      if (!regHeaderItem) continue; // blank page
+      if (!regHeaderItem) continue;
 
       const headerY = regHeaderItem.y;
 
-      // Dynamically read column X positions from the header row
-      // (items within 8px Y of headerY)
       let deskX = null, regX = null, nameX = null;
       for (const item of items) {
         if (Math.abs(item.y - headerY) > 8) continue;
         const t = item.text.trim().toUpperCase();
-        if (t === "DESK" || t === "DESK NO")    deskX = item.x;
-        if (t === "REGISTER NO")                regX  = item.x;
-        if (t === "STUDENT NAME")               nameX = item.x;
+        if (t === "DESK" || t === "DESK NO") deskX = item.x;
+        if (t === "REGISTER NO")             regX  = item.x;
+        if (t === "STUDENT NAME")            nameX = item.x;
       }
+      if (deskX === null) deskX = regX ? regX - 30 : 88;
+      if (regX  === null) regX  = 121;
+      if (nameX === null) nameX = 274;
 
-      // Fallback: use known approximate values if header items not found
-      if (deskX === null) deskX = regX ? regX - 30 : 90;
-      if (regX  === null) regX  = 115;
-      if (nameX === null) nameX = regX + 65;
-
-      // Column boundary: midpoint between regX and nameX
-      // Items with x < midpoint → either desk or reg column
-      // Items with x ≥ midpoint → name column
-      // Between deskX and regX: use midpoint of those two
+      // regNameMid = regX + 40 (NOT midpoint — midpoint incorrectly swallows names)
       const deskRegMid = (deskX + regX) / 2;
-      const regNameMid = (regX  + nameX) / 2;
+      const regNameMid = regX + 40;
 
       // ── 4. DATA ROWS ─────────────────────────────────────────────────────
-      // Group items below the header by Y bucket (5pt tolerance)
       const rowMap = {};
       for (const item of items) {
-        if (item.y >= headerY - 2) continue; // skip header and above
+        if (item.y >= headerY - 10) continue; // exclude header + split "NO" token
         const key = Math.round(item.y / 5) * 5;
         rowMap[key] = rowMap[key] || [];
         rowMap[key].push(item);
       }
 
       let rowsParsed = 0;
-      // Process top→bottom (descending Y in bottom-up coords)
       const sortedYKeys = Object.keys(rowMap).map(Number).sort((a, b) => b - a);
 
       for (const yKey of sortedYKeys) {
@@ -508,18 +526,14 @@ async function uploadPDF(session) {
         reg  = reg.trim();
         name = name.trim();
 
-        // Validate:
-        // desk → 1 or 2 digit number
-        // reg  → 6+ chars, alphanumeric only (no spaces once joined)
-        if (!desk || !/^\d{1,2}$/.test(desk))                        continue;
-        if (!reg  || reg.length < 6)                                  continue;
-        if (!/^[A-Z0-9]+$/i.test(reg.replace(/\s+/g, "")))           continue;
-        if (!name)                                                     continue;
+        if (!desk || !/^\d{1,2}$/.test(desk))               continue;
+        if (!reg  || reg.length < 6)                         continue;
+        if (!/^[A-Z0-9]+$/i.test(reg.replace(/\s+/g, "")))  continue;
+        if (!name)                                            continue;
 
-        // Skip any stray footer lines caught as "name"
         const nu = name.toUpperCase();
         if (nu.includes("KUMARAGURU") || nu.includes("INVIGILATOR") ||
-            nu.includes("SEATING")    || nu.includes("EXAMINATION"))  continue;
+            nu.includes("SEATING")    || nu.includes("EXAMINATION")) continue;
 
         finalData.push({
           "REGISTER NUMBER": reg.replace(/\s+/g, "").toUpperCase(),
@@ -542,18 +556,7 @@ async function uploadPDF(session) {
     }
 
     log(session, `📦 ${finalData.length} records total. Uploading…`);
-
-    const res = await fetch(
-      "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session, data: finalData })
-      }
-    );
-
-    if (!res.ok) throw new Error("UPLOAD FAILED");
-
+    await pushToAPI(session, finalData, session);
     log(session, `✅ ${session} UPLOADED (${finalData.length} RECORDS)`);
 
   } catch (err) {

@@ -6,6 +6,8 @@
 
   <!-- XLSX LIBRARY (DO NOT TOUCH) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <style>
     * {
@@ -23,13 +25,11 @@
   color: #0f172a;
 }
 
-
     .glass {
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 255, 255, 0.6);
 }
-
 
     .admin-container {
   width: 420px;
@@ -37,7 +37,6 @@
   border-radius: 18px;
   box-shadow: 0 30px 60px rgba(0,0,0,0.18);
 }
-
 
     h2 {
   text-align: center;
@@ -47,7 +46,6 @@
   color: #0f172a;
 }
 
-
     .session-box {
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(15, 23, 42, 0.12);
@@ -55,7 +53,6 @@
   padding: 18px;
   margin-bottom: 18px;
 }
-
 
     .session-box h3 {
   margin-top: 0;
@@ -65,6 +62,41 @@
   color: #1e40af;
 }
 
+    /* Tab toggle */
+    .tab-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 7px 0;
+      border: 1.5px solid #cbd5f5;
+      border-radius: 8px;
+      background: #f0f4ff;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      width: auto;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .tab-btn:hover:not(.active) {
+      background: #dbeafe;
+      border-color: #93c5fd;
+    }
+
+    /* Upload panels */
+    .upload-panel { display: none; }
+    .upload-panel.active { display: block; }
 
    input[type="file"] {
   width: 100%;
@@ -76,8 +108,7 @@
   border-radius: 8px;
 }
 
-
-    button {
+    button.upload-btn {
       width: 100%;
       padding: 10px;
       border: none;
@@ -89,15 +120,30 @@
       transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
-    button:hover {
+    button.upload-btn:hover {
       transform: translateY(-1px);
       box-shadow: 0 8px 18px rgba(37,99,235,0.35);
     }
 
-    button:active {
+    button.upload-btn:active {
       transform: translateY(0);
       box-shadow: none;
     }
+
+    /* Status log for PDF */
+    .status-log {
+      margin-top: 10px;
+      font-size: 11.5px;
+      color: #334155;
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 8px 10px;
+      max-height: 88px;
+      overflow-y: auto;
+      display: none;
+      line-height: 1.7;
+    }
+    .status-log.show { display: block; }
 
     .footer-note {
   margin-top: 14px;
@@ -106,7 +152,6 @@
   color: #475569;
   opacity: 0.85;
 }
-
   </style>
 </head>
 
@@ -115,24 +160,85 @@
 <div class="admin-container glass">
   <h2>ADMIN – SEATING UPLOAD</h2>
 
+  <!-- FN SESSION -->
   <div class="session-box">
     <h3>FN Session</h3>
-    <input type="file" id="FN_file" accept=".xlsx,.xls">
-    <button onclick="uploadExcel('FN')">Upload FN</button>
+
+    <div class="tab-row">
+      <button class="tab-btn active" onclick="switchTab('FN','xlsx',this)">📊 Excel</button>
+      <button class="tab-btn"        onclick="switchTab('FN','pdf',this)">📄 PDF</button>
+    </div>
+
+    <div id="FN_xlsx_panel" class="upload-panel active">
+      <input type="file" id="FN_file" accept=".xlsx,.xls">
+      <button class="upload-btn" onclick="uploadExcel('FN')">Upload FN</button>
+    </div>
+
+    <div id="FN_pdf_panel" class="upload-panel">
+      <input type="file" id="FN_pdf_file" accept=".pdf">
+      <button class="upload-btn" onclick="uploadPDF('FN')">Upload FN PDF</button>
+    </div>
+
+    <div id="FN_log" class="status-log"></div>
   </div>
 
+  <!-- AN SESSION -->
   <div class="session-box">
     <h3>AN Session</h3>
-    <input type="file" id="AN_file" accept=".xlsx,.xls">
-    <button onclick="uploadExcel('AN')">Upload AN</button>
+
+    <div class="tab-row">
+      <button class="tab-btn active" onclick="switchTab('AN','xlsx',this)">📊 Excel</button>
+      <button class="tab-btn"        onclick="switchTab('AN','pdf',this)">📄 PDF</button>
+    </div>
+
+    <div id="AN_xlsx_panel" class="upload-panel active">
+      <input type="file" id="AN_file" accept=".xlsx,.xls">
+      <button class="upload-btn" onclick="uploadExcel('AN')">Upload AN</button>
+    </div>
+
+    <div id="AN_pdf_panel" class="upload-panel">
+      <input type="file" id="AN_pdf_file" accept=".pdf">
+      <button class="upload-btn" onclick="uploadPDF('AN')">Upload AN PDF</button>
+    </div>
+
+    <div id="AN_log" class="status-log"></div>
   </div>
 
   <div class="footer-note">
-    Admin panel • Excel (.xlsx / .xls)
+    Admin panel • Excel (.xlsx / .xls) or PDF
   </div>
 </div>
 
 <script>
+// ── PDF.js worker ──────────────────────────────────────────────────────────
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+// ── Tab switcher ───────────────────────────────────────────────────────────
+function switchTab(session, type, btn) {
+  btn.parentElement.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById(`${session}_xlsx_panel`).classList.toggle("active", type === "xlsx");
+  document.getElementById(`${session}_pdf_panel`).classList.toggle("active",  type === "pdf");
+  clearLog(session);
+}
+
+// ── Log helpers (PDF only) ─────────────────────────────────────────────────
+function clearLog(session) {
+  const el = document.getElementById(`${session}_log`);
+  el.innerHTML = "";
+  el.classList.remove("show");
+}
+function log(session, msg) {
+  const el = document.getElementById(`${session}_log`);
+  el.classList.add("show");
+  el.innerHTML += msg + "<br>";
+  el.scrollTop = el.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXCEL UPLOAD  ── original code, completely unchanged
+// ═══════════════════════════════════════════════════════════════════════════
 async function uploadExcel(session) {
   try {
     const fileInput = document.getElementById(session + "_file");
@@ -198,36 +304,23 @@ async function uploadExcel(session) {
           break;
         }
       }
-      // ----- SIDE DETECTION (LEFT / RIGHT) -----
-// ----- SIDE DETECTION (MERGE-BASED, ACTUALLY CORRECT) -----
-let detectedSide = "";
 
-const mergesAboveHeader = (sheet["!merges"] || []).filter(m => m.e.r < headerRow);
+      // ----- SIDE DETECTION (MERGE-BASED, ACTUALLY CORRECT) -----
+      let detectedSide = "";
+      const mergesAboveHeader = (sheet["!merges"] || []).filter(m => m.e.r < headerRow);
 
-for (const m of mergesAboveHeader) {
-  const addr = XLSX.utils.encode_cell({ r: m.s.r, c: m.s.c });
-  const cell = sheet[addr];
-  if (!cell || !cell.v) continue;
+      for (const m of mergesAboveHeader) {
+        const addr = XLSX.utils.encode_cell({ r: m.s.r, c: m.s.c });
+        const cell = sheet[addr];
+        if (!cell || !cell.v) continue;
+        const raw = String(cell.v).toUpperCase().replace(/\s+/g, " ").trim();
+        if (raw.includes("LEFT"))  { detectedSide = "LEFT";  break; }
+        if (raw.includes("RIGHT")) { detectedSide = "RIGHT"; break; }
+      }
 
-  const raw = String(cell.v)
-    .toUpperCase()
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (raw.includes("LEFT")) {
-    detectedSide = "LEFT";
-    break;
-  }
-
-  if (raw.includes("RIGHT")) {
-    detectedSide = "RIGHT";
-    break;
-  }
-}
-
-if (!detectedSide) {
-  console.warn(`❌ SIDE NOT FOUND (MERGE READ FAILED) | sheet=${sheetName}`);
-}
+      if (!detectedSide) {
+        console.warn(`❌ SIDE NOT FOUND (MERGE READ FAILED) | sheet=${sheetName}`);
+      }
 
       if (headerRow === -1) return;
 
@@ -271,6 +364,148 @@ if (!detectedSide) {
   } catch (err) {
     console.error(err);
     alert("❌ ERROR – CHECK CONSOLE");
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PDF UPLOAD  ── produces identical { REGISTER NUMBER, NAME, SEAT, HALL, SIDE }
+// ═══════════════════════════════════════════════════════════════════════════
+async function uploadPDF(session) {
+  clearLog(session);
+  try {
+    const fileInput = document.getElementById(`${session}_pdf_file`);
+    const file = fileInput.files[0];
+    if (!file) { alert("NO FILE SELECTED"); return; }
+
+    log(session, "📄 Reading PDF…");
+    const buffer = await file.arrayBuffer();
+    const pdfDoc = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const totalPages = pdfDoc.numPages;
+    log(session, `📑 ${totalPages} pages found. Parsing…`);
+
+    const finalData = [];
+
+    // Words to skip when collecting hall name after "NO:"
+    const SKIP = new Set(["LEFT","RIGHT","SIDE","NAME","&","SIGNATURE","OF","THE","INVIGILATOR"]);
+
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      const page    = await pdfDoc.getPage(pageNum);
+      const content = await page.getTextContent();
+
+      // Collect all text items with their PDF coordinates
+      // PDF Y-axis: 0 = bottom, increases upward
+      const items = content.items
+        .map(i => ({ text: i.str.trim(), x: i.transform[4], y: i.transform[5] }))
+        .filter(i => i.text.length > 0);
+
+      // ── Hall: token(s) immediately after "NO:" that aren't skip-words ──
+      let detectedHall = "";
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].text === "NO:") {
+          for (let j = i + 1; j < Math.min(i + 6, items.length); j++) {
+            const t = items[j].text.toUpperCase();
+            if (!t || SKIP.has(t)) break;
+            detectedHall += items[j].text + " ";
+          }
+          detectedHall = detectedHall.trim();
+          break;
+        }
+      }
+
+      // ── Side: find adjacent LEFT/RIGHT + SIDE tokens ──
+      let detectedSide = "";
+      for (let i = 0; i < items.length - 1; i++) {
+        const t = items[i].text.toUpperCase();
+        if ((t === "LEFT" || t === "RIGHT") && items[i+1].text.toUpperCase() === "SIDE") {
+          detectedSide = t;
+          break;
+        }
+      }
+
+      // ── Header Y: Y-coordinate of the "REGISTER" label ──
+      // In PDF coords (bottom-up) this is a HIGH Y value near the top of the table
+      let headerY = null;
+      for (const item of items) {
+        if (item.text === "REGISTER") {
+          headerY = item.y;
+          break;
+        }
+      }
+      if (headerY === null) continue; // blank page — no table
+
+      // ── Column X boundaries (verified from actual PDF measurements) ──
+      //   DESK NO  : x  85 – 110   (1 or 2 digit number)
+      //   REGISTER : x 111 – 165   (register number like 232AA2241)
+      //   NAME     : x 166 +       (student name, may be multiple words)
+
+      // Group items into row buckets by Y (2pt tolerance, items BELOW header)
+      const rowMap = {};
+      for (const item of items) {
+        if (item.y >= headerY) continue;       // skip header row and above
+        const key = Math.round(item.y / 2) * 2;
+        rowMap[key] = rowMap[key] || [];
+        rowMap[key].push(item);
+      }
+
+      let rowsParsed = 0;
+      // Sort descending by Y so we process rows top→bottom
+      for (const yKey of Object.keys(rowMap).map(Number).sort((a, b) => b - a)) {
+        const rowItems = rowMap[yKey].sort((a, b) => a.x - b.x);
+
+        let desk = "", reg = "", name = "";
+        for (const item of rowItems) {
+          if      (item.x >= 85  && item.x <= 110) desk += item.text + " ";
+          else if (item.x >  110 && item.x <= 165) reg  += item.text + " ";
+          else if (item.x >  165)                  name += item.text + " ";
+        }
+
+        desk = desk.trim();
+        reg  = reg.trim();
+        name = name.trim();
+
+        // Validate: desk = 1–2 digit number, reg = 6+ uppercase alphanumeric
+        if (!desk || !/^\d{1,2}$/.test(desk))          continue;
+        if (!reg  || !/^[A-Z0-9]{6,}/.test(reg.toUpperCase())) continue;
+        if (!name)                                       continue;
+
+        finalData.push({
+          "REGISTER NUMBER": reg.toUpperCase(),
+          "NAME": name,
+          "SEAT": desk,
+          "HALL": detectedHall,
+          "SIDE": detectedSide
+        });
+        rowsParsed++;
+      }
+
+      if (rowsParsed > 0) {
+        log(session, `✔ Page ${pageNum}: ${detectedHall} ${detectedSide} → ${rowsParsed} rows`);
+      }
+    }
+
+    if (finalData.length === 0) {
+      log(session, "❌ No valid data found. Is this the correct seating plan PDF?");
+      return;
+    }
+
+    log(session, `📦 ${finalData.length} records total. Uploading…`);
+
+    const res = await fetch(
+      "https://seat-finder-api.harjeetgowda644.workers.dev/admin/upload",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session, data: finalData })
+      }
+    );
+
+    if (!res.ok) throw new Error("UPLOAD FAILED");
+
+    log(session, `✅ ${session} UPLOADED (${finalData.length} RECORDS)`);
+
+  } catch (err) {
+    console.error(err);
+    log(session, "❌ ERROR: " + err.message);
   }
 }
 </script>

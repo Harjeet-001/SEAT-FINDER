@@ -142,6 +142,24 @@
     }
     .status-log.show { display: block; }
 
+    .clear-btn {
+      width: 100%;
+      margin-top: 10px;
+      padding: 8px;
+      border: 1.5px solid #fca5a5;
+      border-radius: 8px;
+      background: #fff5f5;
+      color: #dc2626;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .clear-btn:hover {
+      background: #fee2e2;
+      border-color: #f87171;
+    }
+
     .footer-note {
       margin-top: 14px;
       text-align: center;
@@ -173,6 +191,7 @@
       <button class="upload-btn" onclick="uploadPDF('FN')">Upload FN PDF</button>
     </div>
     <div id="FN_log" class="status-log"></div>
+    <button class="clear-btn" onclick="clearSession('FN')">🗑️ Clear FN Data</button>
   </div>
 
   <!-- AN SESSION -->
@@ -191,6 +210,7 @@
       <button class="upload-btn" onclick="uploadPDF('AN')">Upload AN PDF</button>
     </div>
     <div id="AN_log" class="status-log"></div>
+    <button class="clear-btn" onclick="clearSession('AN')">🗑️ Clear AN Data</button>
   </div>
 
   <div class="footer-note">
@@ -204,6 +224,22 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 const API_BASE = "https://seat-finder-api.harjeetgowda644.workers.dev";
+
+// ── Clear session ──────────────────────────────────────────────────────────
+async function clearSession(session) {
+  if (!confirm(`Clear ALL ${session} seating data? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/admin/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session, data: [] })
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    alert(`✅ ${session} data cleared.`);
+  } catch (err) {
+    alert("❌ Failed to clear: " + err.message);
+  }
+}
 
 // ── Tab switcher ───────────────────────────────────────────────────────────
 function switchTab(session, type, btn) {
@@ -476,20 +512,21 @@ async function uploadPDF(session) {
       // Some rows have desk number at a slightly different Y than reg+name.
       // e.g. desk="1" at bucket=830, reg="232AA2271" name="PRABAVATHI G" at bucket=840
       // Fix: if a bucket has ONLY a valid desk number (no reg/name), look for
-      // a neighbouring bucket within 15pt that has reg+name but no desk, and merge them.
+      // a neighbouring bucket within 25pt that has reg+name but no desk, and merge them.
+      // Using 25pt (not 15pt) to safely handle larger splits across all pages.
       const sortedKeys = Object.keys(parsed).map(Number).sort((a, b) => b - a);
 
       for (const key of sortedKeys) {
         const row = parsed[key];
         // This bucket has only a desk number — no reg or name
         if (/^\d{1,2}$/.test(row.desk) && !row.reg && !row.name) {
-          // Find the nearest bucket within 15pt that has reg+name but no desk
+          // Find the nearest bucket within 25pt that has reg+name but no desk
           let bestKey = null, bestGap = 999;
           for (const otherKey of sortedKeys) {
             if (otherKey === key) continue;
             const other = parsed[otherKey];
             const gap = Math.abs(otherKey - key);
-            if (gap <= 15 && other.reg && other.name && !other.desk && gap < bestGap) {
+            if (gap <= 25 && other.reg && other.name && !other.desk && gap < bestGap) {
               bestGap = gap;
               bestKey = otherKey;
             }

@@ -15,59 +15,53 @@
     }
 
     body {
-  margin: 0;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: "Segoe UI", Arial, sans-serif;
-  background: linear-gradient(180deg, #eaf7ff, #f5fbff);
-  color: #0f172a;
-}
-
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(180deg, #eaf7ff, #f5fbff);
+      color: #0f172a;
+    }
 
     .glass {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-}
-
+      background: rgba(255, 255, 255, 0.55);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+    }
 
     .admin-container {
-  width: 420px;
-  padding: 28px;
-  border-radius: 18px;
-  box-shadow: 0 30px 60px rgba(0,0,0,0.18);
-}
-
+      width: 420px;
+      padding: 28px;
+      border-radius: 18px;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.18);
+    }
 
     h2 {
-  text-align: center;
-  margin-bottom: 25px;
-  letter-spacing: 1px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
+      text-align: center;
+      margin-bottom: 25px;
+      letter-spacing: 1px;
+      font-weight: 700;
+      color: #0f172a;
+    }
 
     .session-box {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 14px;
-  padding: 18px;
-  margin-bottom: 18px;
-}
-
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
 
     .session-box h3 {
-  margin-top: 0;
-  margin-bottom: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1e40af;
-}
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #1e40af;
+    }
 
-    /* Tab toggle */
     .tab-row {
       display: flex;
       gap: 8px;
@@ -99,20 +93,18 @@
       border-color: #93c5fd;
     }
 
-    /* Upload panels */
     .upload-panel { display: none; }
     .upload-panel.active { display: block; }
 
-   input[type="file"] {
-  width: 100%;
-  margin-bottom: 12px;
-  padding: 8px;
-  background: #ffffff;
-  color: #0f172a;
-  border: 1px solid #cbd5f5;
-  border-radius: 8px;
-}
-
+    input[type="file"] {
+      width: 100%;
+      margin-bottom: 12px;
+      padding: 8px;
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid #cbd5f5;
+      border-radius: 8px;
+    }
 
     button.upload-btn {
       width: 100%;
@@ -136,7 +128,6 @@
       box-shadow: none;
     }
 
-    /* Status log for PDF */
     .status-log {
       margin-top: 10px;
       font-size: 11.5px;
@@ -152,13 +143,12 @@
     .status-log.show { display: block; }
 
     .footer-note {
-  margin-top: 14px;
-  text-align: center;
-  font-size: 11px;
-  color: #475569;
-  opacity: 0.85;
-}
-
+      margin-top: 14px;
+      text-align: center;
+      font-size: 11px;
+      color: #475569;
+      opacity: 0.85;
+    }
   </style>
 </head>
 
@@ -170,44 +160,36 @@
   <!-- FN SESSION -->
   <div class="session-box">
     <h3>FN Session</h3>
-
     <div class="tab-row">
       <button class="tab-btn active" onclick="switchTab('FN','xlsx',this)">📊 Excel</button>
       <button class="tab-btn"        onclick="switchTab('FN','pdf',this)">📄 PDF</button>
     </div>
-
     <div id="FN_xlsx_panel" class="upload-panel active">
       <input type="file" id="FN_file" accept=".xlsx,.xls">
       <button class="upload-btn" onclick="uploadExcel('FN')">Upload FN</button>
     </div>
-
     <div id="FN_pdf_panel" class="upload-panel">
       <input type="file" id="FN_pdf_file" accept=".pdf">
       <button class="upload-btn" onclick="uploadPDF('FN')">Upload FN PDF</button>
     </div>
-
     <div id="FN_log" class="status-log"></div>
   </div>
 
   <!-- AN SESSION -->
   <div class="session-box">
     <h3>AN Session</h3>
-
     <div class="tab-row">
       <button class="tab-btn active" onclick="switchTab('AN','xlsx',this)">📊 Excel</button>
       <button class="tab-btn"        onclick="switchTab('AN','pdf',this)">📄 PDF</button>
     </div>
-
     <div id="AN_xlsx_panel" class="upload-panel active">
       <input type="file" id="AN_file" accept=".xlsx,.xls">
       <button class="upload-btn" onclick="uploadExcel('AN')">Upload AN</button>
     </div>
-
     <div id="AN_pdf_panel" class="upload-panel">
       <input type="file" id="AN_pdf_file" accept=".pdf">
       <button class="upload-btn" onclick="uploadPDF('AN')">Upload AN PDF</button>
     </div>
-
     <div id="AN_log" class="status-log"></div>
   </div>
 
@@ -375,7 +357,27 @@ async function uploadExcel(session) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PDF UPLOAD  ── dynamic column detection, no hardcoded X values
+// PDF UPLOAD
+// Coordinate facts confirmed from real PDF.js output:
+//
+//  Per page, all items are returned in one flat list (not top-to-bottom order).
+//  Y axis: bottom-up. Header row y ≈ 857. Data rows have y < 857.
+//
+//  HALL NO: is a single token at high Y (≈889), hall value (e.g. "LH24")
+//           is a separate token nearby but at a DIFFERENT y (≈876).
+//           We find the hall value by looking for the token closest to
+//           "HALL NO:" that looks like a hall code (short, alphanumeric).
+//
+//  LEFT SIDE / RIGHT SIDE come as a SINGLE string token e.g. "LEFT SIDE"
+//           so we check item.str directly with .includes().
+//
+//  Column X positions (consistent across all pages):
+//    DESK NO  : x ≈  92–97   (1-2 digit number)
+//    REGISTER : x ≈ 112–130  (register number)
+//    NAME     : x ≈ 179–200  (student name)
+//
+//  We detect column X dynamically from the header row on each page
+//  so slight per-page variation is handled automatically.
 // ═══════════════════════════════════════════════════════════════════════════
 async function uploadPDF(session) {
   clearLog(session);
@@ -385,168 +387,143 @@ async function uploadPDF(session) {
     if (!file) { alert("NO FILE SELECTED"); return; }
 
     log(session, "📄 Reading PDF…");
-    const buffer  = await file.arrayBuffer();
-    const pdfDoc  = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const buffer    = await file.arrayBuffer();
+    const pdfDoc    = await pdfjsLib.getDocument({ data: buffer }).promise;
     const totalPages = pdfDoc.numPages;
     log(session, `📑 ${totalPages} pages found. Parsing…`);
 
     const finalData = [];
-    const SKIP_WORDS = new Set([
-      "LEFT","RIGHT","SIDE","NAME","&","SIGNATURE","OF","THE","INVIGILATOR",
-      "CLASS","DESK","NO","REGISTER","STUDENT","REMARKS","NO:"
-    ]);
 
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
       const page    = await pdfDoc.getPage(pageNum);
       const content = await page.getTextContent();
 
-      // ── Collect all text items ──────────────────────────────────────────
-      // PDF.js transform: [scaleX, skewX, skewY, scaleY, translateX, translateY]
-      // translateX = x from left, translateY = y from bottom (bottom-up)
+      // Collect all items: text, x (left→right), y (bottom→up)
       const items = content.items
-        .map(i => ({
-          text: i.str.trim(),
-          x:    i.transform[4],   // distance from left edge
-          y:    i.transform[5]    // distance from bottom (higher = higher on page)
-        }))
-        .filter(i => i.text.length > 0);
+        .map(i => ({ text: i.str, x: i.transform[4], y: i.transform[5] }))
+        .filter(i => i.text.trim().length > 0);
 
       if (items.length === 0) continue;
 
-      // ── Hall: token(s) right after "NO:" skipping non-hall words ────────
+      // ── 1. HALL ─────────────────────────────────────────────────────────
+      // "HALL NO:" is one token. The hall value is a nearby short token.
+      // Strategy: find "HALL NO:" item, then find the closest item to its
+      // right / below that is short (≤8 chars) and alphanumeric.
       let detectedHall = "";
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].text === "NO:") {
-          for (let j = i + 1; j < Math.min(i + 6, items.length); j++) {
-            const t = items[j].text.toUpperCase();
-            if (SKIP_WORDS.has(t)) break;
-            detectedHall += items[j].text + " ";
+      const hallItem = items.find(i => i.text.trim() === "HALL NO:");
+      if (hallItem) {
+        // Look for a token within 120px horizontally and 20px vertically
+        const candidates = items.filter(i =>
+          i.text.trim() !== "HALL NO:" &&
+          Math.abs(i.y - hallItem.y) < 20 &&
+          i.x > hallItem.x &&
+          i.x < hallItem.x + 120
+        );
+        // Also check tokens slightly below (within 15px lower Y)
+        const candidatesBelow = items.filter(i =>
+          i.text.trim() !== "HALL NO:" &&
+          i.y < hallItem.y &&
+          hallItem.y - i.y < 20 &&
+          i.x > hallItem.x - 30
+        );
+        const allCandidates = [...candidates, ...candidatesBelow];
+        // Pick the one that looks like a hall code: short, no spaces
+        for (const c of allCandidates) {
+          const t = c.text.trim();
+          if (t.length > 0 && t.length <= 10 && /^[A-Z0-9\s]+$/i.test(t) &&
+              !["LEFT","RIGHT","SIDE","NAME","SIGNATURE"].includes(t.toUpperCase())) {
+            detectedHall = t;
+            break;
           }
-          detectedHall = detectedHall.trim();
-          break;
         }
       }
 
-      // ── Side: first occurrence of LEFT or RIGHT adjacent to SIDE ────────
+      // ── 2. SIDE ──────────────────────────────────────────────────────────
+      // Comes as a single string: "LEFT SIDE" or "RIGHT SIDE"
       let detectedSide = "";
-      for (let i = 0; i < items.length - 1; i++) {
-        const t = items[i].text.toUpperCase();
-        if ((t === "LEFT" || t === "RIGHT") &&
-            items[i + 1].text.toUpperCase() === "SIDE") {
-          detectedSide = t;
-          break;
-        }
-      }
-
-      // ── Find the header row by locating "REGISTER" and "DESK" labels ────
-      // We look for a line that contains both — that Y is our header Y.
-      // In PDF.js coords (bottom-up), the header is somewhere in the middle
-      // of the page. Data rows have a LOWER y value than the header.
-
-      let headerY   = null;
-      let deskX     = null;
-      let regX      = null;
-      let nameX     = null;
-
-      // Group all items by Y bucket (3pt) to find lines
-      const lineMap = {};
       for (const item of items) {
-        const key = Math.round(item.y / 3) * 3;
-        lineMap[key] = lineMap[key] || [];
-        lineMap[key].push(item);
+        const t = item.text.trim().toUpperCase();
+        if (t === "LEFT SIDE"  || t === "LEFT")  { detectedSide = "LEFT";  break; }
+        if (t === "RIGHT SIDE" || t === "RIGHT") { detectedSide = "RIGHT"; break; }
       }
 
-      // Scan every line for the one containing DESK + REGISTER + STUDENT
-      for (const yKey of Object.keys(lineMap).map(Number)) {
-        const lineTexts = lineMap[yKey].map(i => i.text.toUpperCase());
-        const hasDESK   = lineTexts.some(t => t.includes("DESK"));
-        const hasREG    = lineTexts.some(t => t.includes("REGISTER"));
-        const hasNAME   = lineTexts.some(t => t.includes("STUDENT") || t.includes("NAME"));
+      // ── 3. HEADER ROW ────────────────────────────────────────────────────
+      // Find the item whose text is "REGISTER NO" — its Y is the header Y.
+      // All data rows have y strictly less than headerY.
+      const regHeaderItem = items.find(i => i.text.trim() === "REGISTER NO");
+      if (!regHeaderItem) continue; // blank page
 
-        // Also check the line just above (DESK NO is sometimes split across 2 lines)
-        // so we accept a line with at least REGISTER + one of the others
-        if (hasREG && (hasDESK || hasNAME)) {
-          // Found the header line — read column X positions from it
-          for (const item of lineMap[yKey]) {
-            const t = item.text.toUpperCase();
-            if (t.includes("DESK"))                       deskX = item.x;
-            if (t.includes("REGISTER"))                   regX  = item.x;
-            if (t.includes("STUDENT") || t === "NAME")    nameX = item.x;
-          }
+      const headerY = regHeaderItem.y;
 
-          // DESK NO is sometimes on the line just above (split header).
-          // Also check Y+3 bucket for DESK if not found yet.
-          if (deskX === null) {
-            const aboveLine = lineMap[Math.round((yKey + 3) / 3) * 3] || [];
-            for (const item of aboveLine) {
-              if (item.text.toUpperCase().includes("DESK")) { deskX = item.x; break; }
-            }
-          }
-
-          headerY = yKey;
-          break;
-        }
+      // Dynamically read column X positions from the header row
+      // (items within 8px Y of headerY)
+      let deskX = null, regX = null, nameX = null;
+      for (const item of items) {
+        if (Math.abs(item.y - headerY) > 8) continue;
+        const t = item.text.trim().toUpperCase();
+        if (t === "DESK" || t === "DESK NO")    deskX = item.x;
+        if (t === "REGISTER NO")                regX  = item.x;
+        if (t === "STUDENT NAME")               nameX = item.x;
       }
 
-      if (headerY === null || regX === null) {
-        // Blank page or no table
-        continue;
-      }
+      // Fallback: use known approximate values if header items not found
+      if (deskX === null) deskX = regX ? regX - 30 : 90;
+      if (regX  === null) regX  = 115;
+      if (nameX === null) nameX = regX + 65;
 
-      // If we still don't have deskX or nameX, estimate from regX
-      // (desk is always to the left of register, name to the right)
-      if (deskX === null) deskX = regX - 30;
-      if (nameX === null) nameX = regX + 80;
-
-      // Column boundaries: midpoints between detected X positions
-      // desk col  : x in [ deskX - 20 ... midpoint(deskX, regX) ]
-      // reg  col  : x in [ midpoint(deskX, regX) ... midpoint(regX, nameX) ]
-      // name col  : x in [ midpoint(regX, nameX) ... page width ]
+      // Column boundary: midpoint between regX and nameX
+      // Items with x < midpoint → either desk or reg column
+      // Items with x ≥ midpoint → name column
+      // Between deskX and regX: use midpoint of those two
       const deskRegMid = (deskX + regX) / 2;
       const regNameMid = (regX  + nameX) / 2;
 
-      // ── Parse data rows: all lines with y < headerY ──────────────────────
-      let rowsParsed = 0;
+      // ── 4. DATA ROWS ─────────────────────────────────────────────────────
+      // Group items below the header by Y bucket (5pt tolerance)
+      const rowMap = {};
+      for (const item of items) {
+        if (item.y >= headerY - 2) continue; // skip header and above
+        const key = Math.round(item.y / 5) * 5;
+        rowMap[key] = rowMap[key] || [];
+        rowMap[key].push(item);
+      }
 
-      // Sort Y keys descending (top of page first in bottom-up coords = highest Y first)
-      const sortedYKeys = Object.keys(lineMap)
-        .map(Number)
-        .filter(y => y < headerY)
-        .sort((a, b) => b - a);
+      let rowsParsed = 0;
+      // Process top→bottom (descending Y in bottom-up coords)
+      const sortedYKeys = Object.keys(rowMap).map(Number).sort((a, b) => b - a);
 
       for (const yKey of sortedYKeys) {
-        const rowItems = lineMap[yKey].sort((a, b) => a.x - b.x);
+        const rowItems = rowMap[yKey].sort((a, b) => a.x - b.x);
 
         let desk = "", reg = "", name = "";
         for (const item of rowItems) {
-          if      (item.x < deskRegMid)  desk += item.text + " ";
-          else if (item.x < regNameMid)  reg  += item.text + " ";
-          else                           name += item.text + " ";
+          const t = item.text.trim();
+          if (!t) continue;
+          if      (item.x < deskRegMid) desk += t + " ";
+          else if (item.x < regNameMid) reg  += t + " ";
+          else                          name += t + " ";
         }
 
         desk = desk.trim();
         reg  = reg.trim();
         name = name.trim();
 
-        // Validate row:
-        // desk  → 1 or 2 digit number only
-        // reg   → at least 6 chars, alphanumeric (register numbers like 232AA2241, 2428M0049)
-        // name  → non-empty, not a known footer phrase
-        if (!desk || !/^\d{1,2}$/.test(desk))                      continue;
-        if (!reg  || reg.length < 6)                                continue;
-        if (!/^[A-Z0-9]+$/i.test(reg.replace(/\s/g, "")))          continue;
-        if (!name)                                                   continue;
+        // Validate:
+        // desk → 1 or 2 digit number
+        // reg  → 6+ chars, alphanumeric only (no spaces once joined)
+        if (!desk || !/^\d{1,2}$/.test(desk))                        continue;
+        if (!reg  || reg.length < 6)                                  continue;
+        if (!/^[A-Z0-9]+$/i.test(reg.replace(/\s+/g, "")))           continue;
+        if (!name)                                                     continue;
 
-        // Skip lines that are clearly footer/header text
-        const nameUpper = name.toUpperCase();
-        if (nameUpper.includes("KUMARAGURU") ||
-            nameUpper.includes("INVIGILATOR") ||
-            nameUpper.includes("SEATING") ||
-            nameUpper.includes("EXAMINATION")) continue;
+        // Skip any stray footer lines caught as "name"
+        const nu = name.toUpperCase();
+        if (nu.includes("KUMARAGURU") || nu.includes("INVIGILATOR") ||
+            nu.includes("SEATING")    || nu.includes("EXAMINATION"))  continue;
 
         finalData.push({
-          "REGISTER NUMBER": reg.replace(/\s/g, "").toUpperCase(),
-          "NAME": name,
+          "REGISTER NUMBER": reg.replace(/\s+/g, "").toUpperCase(),
+          "NAME": name.trim(),
           "SEAT": desk,
           "HALL": detectedHall,
           "SIDE": detectedSide

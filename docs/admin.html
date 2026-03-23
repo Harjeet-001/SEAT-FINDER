@@ -204,7 +204,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 const API_BASE = "https://seat-finder-api.harjeetgowda644.workers.dev";
-const CHUNK_SIZE = 200; // records per upload call
 
 // ── Tab switcher ───────────────────────────────────────────────────────────
 function switchTab(session, type, btn) {
@@ -226,66 +225,6 @@ function log(session, msg) {
   el.classList.add("show");
   el.innerHTML += msg + "<br>";
   el.scrollTop = el.scrollHeight;
-}
-
-// ── Chunked upload ─────────────────────────────────────────────────────────
-// Sends all records in one shot. If that fails (network/CORS), splits into
-// CHUNK_SIZE batches using the worker's existing /admin/upload endpoint —
-// first chunk uses normal upload (overwrites), remaining chunks append by
-// fetching existing data first and merging client-side, then re-uploading.
-async function pushToAPI(session, finalData, logSession) {
-  // Try single upload first
-  try {
-    const res = await fetch(`${API_BASE}/admin/upload`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session, data: finalData })
-    });
-    if (res.ok) return; // success
-    const errText = await res.text();
-    throw new Error(`HTTP ${res.status}: ${errText}`);
-  } catch (e) {
-    // Single upload failed — fall back to chunked approach
-    log(logSession, `⚠️ Single upload failed (${e.message}), trying chunked…`);
-  }
-
-  // Chunked: upload in batches of CHUNK_SIZE
-  // Strategy: overwrite with first chunk, then fetch + merge + re-upload for each subsequent chunk
-  const chunks = [];
-  for (let i = 0; i < finalData.length; i += CHUNK_SIZE) {
-    chunks.push(finalData.slice(i, i + CHUNK_SIZE));
-  }
-
-  log(logSession, `📤 Uploading in ${chunks.length} chunks of up to ${CHUNK_SIZE} records…`);
-
-  // Upload first chunk (overwrites any existing data)
-  let accumulated = [...chunks[0]];
-  const res0 = await fetch(`${API_BASE}/admin/upload`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session, data: accumulated })
-  });
-  if (!res0.ok) throw new Error(`Chunk 1 failed: HTTP ${res0.status}`);
-  log(logSession, `  ✔ Chunk 1/${chunks.length} uploaded`);
-
-  // For remaining chunks: fetch current stored data, merge, re-upload
-  for (let i = 1; i < chunks.length; i++) {
-    // Fetch what's currently stored
-    const lookupRes = await fetch(`${API_BASE}/lookup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reg: accumulated[0]["REGISTER NUMBER"] })
-    });
-    // We can't directly read back the stored array, so just accumulate client-side
-    accumulated = accumulated.concat(chunks[i]);
-    const res = await fetch(`${API_BASE}/admin/upload`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session, data: accumulated })
-    });
-    if (!res.ok) throw new Error(`Chunk ${i+1} failed: HTTP ${res.status}`);
-    log(logSession, `  ✔ Chunk ${i+1}/${chunks.length} uploaded`);
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -448,6 +387,7 @@ async function uploadPDF(session) {
       if (items.length === 0) continue;
 
       // ── 1. SIDE ──────────────────────────────────────────────────────────
+      // Comes as a single token: "LEFT SIDE" or "RIGHT SIDE"
       let detectedSide = "";
       for (const item of items) {
         const t = item.text.trim().toUpperCase();
@@ -456,6 +396,7 @@ async function uploadPDF(session) {
       }
 
       // ── 2. HALL ──────────────────────────────────────────────────────────
+      // "HALL NO:" is one token; hall value is a separate nearby token
       let detectedHall = "";
       const hallItem = items.find(i => i.text.trim() === "HALL NO:");
       if (hallItem) {
@@ -478,7 +419,7 @@ async function uploadPDF(session) {
 
       // ── 3. HEADER ROW ────────────────────────────────────────────────────
       const regHeaderItem = items.find(i => i.text.trim() === "REGISTER NO");
-      if (!regHeaderItem) continue;
+      if (!regHeaderItem) continue; // blank page
 
       const headerY = regHeaderItem.y;
 
@@ -494,25 +435,28 @@ async function uploadPDF(session) {
       if (regX  === null) regX  = 121;
       if (nameX === null) nameX = 274;
 
-      // regNameMid = regX + 40 (NOT midpoint — midpoint incorrectly swallows names)
+      // regNameMid = regX + 40 (NOT midpoint — midpoint swallows names into reg)
       const deskRegMid = (deskX + regX) / 2;
       const regNameMid = regX + 40;
 
-      // ── 4. DATA ROWS ─────────────────────────────────────────────────────
+      // ── 4. COLLECT RAW ITEMS BELOW HEADER ────────────────────────────────
+      // Only items below headerY - 10 (excludes split "NO" token of "DESK NO")
+      // Only items with x >= 75 (excludes left-margin class labels like "III B.COM")
+      const dataItems = items.filter(i => i.y < headerY - 10 && i.x >= 75);
+
+      // ── 5. BUILD ROW MAP with 5pt buckets ────────────────────────────────
       const rowMap = {};
-      for (const item of items) {
-        if (item.y >= headerY - 10) continue; // exclude header + split "NO" token
+      for (const item of dataItems) {
         const key = Math.round(item.y / 5) * 5;
         rowMap[key] = rowMap[key] || [];
         rowMap[key].push(item);
       }
 
-      let rowsParsed = 0;
-      const sortedYKeys = Object.keys(rowMap).map(Number).sort((a, b) => b - a);
-
-      for (const yKey of sortedYKeys) {
-        const rowItems = rowMap[yKey].sort((a, b) => a.x - b.x);
-
+      // ── 6. PARSE each bucket into { desk, reg, name } ────────────────────
+      const parsed = {}; // key → { desk, reg, name }
+      for (const [keyStr, rowItems] of Object.entries(rowMap)) {
+        const key = Number(keyStr);
+        rowItems.sort((a, b) => a.x - b.x);
         let desk = "", reg = "", name = "";
         for (const item of rowItems) {
           const t = item.text.trim();
@@ -521,16 +465,56 @@ async function uploadPDF(session) {
           else if (item.x < regNameMid) reg  += t + " ";
           else                          name += t + " ";
         }
+        parsed[key] = {
+          desk: desk.trim(),
+          reg:  reg.trim(),
+          name: name.trim()
+        };
+      }
 
-        desk = desk.trim();
-        reg  = reg.trim();
-        name = name.trim();
+      // ── 7. MERGE SPLIT ROWS ───────────────────────────────────────────────
+      // Some rows have desk number at a slightly different Y than reg+name.
+      // e.g. desk="1" at bucket=830, reg="232AA2271" name="PRABAVATHI G" at bucket=840
+      // Fix: if a bucket has ONLY a valid desk number (no reg/name), look for
+      // a neighbouring bucket within 15pt that has reg+name but no desk, and merge them.
+      const sortedKeys = Object.keys(parsed).map(Number).sort((a, b) => b - a);
+
+      for (const key of sortedKeys) {
+        const row = parsed[key];
+        // This bucket has only a desk number — no reg or name
+        if (/^\d{1,2}$/.test(row.desk) && !row.reg && !row.name) {
+          // Find the nearest bucket within 15pt that has reg+name but no desk
+          let bestKey = null, bestGap = 999;
+          for (const otherKey of sortedKeys) {
+            if (otherKey === key) continue;
+            const other = parsed[otherKey];
+            const gap = Math.abs(otherKey - key);
+            if (gap <= 15 && other.reg && other.name && !other.desk && gap < bestGap) {
+              bestGap = gap;
+              bestKey = otherKey;
+            }
+          }
+          if (bestKey !== null) {
+            // Merge: give the desk number to the reg+name bucket, remove this one
+            parsed[bestKey].desk = row.desk;
+            delete parsed[key];
+          }
+        }
+      }
+
+      // ── 8. VALIDATE AND COLLECT ───────────────────────────────────────────
+      let rowsParsed = 0;
+      const finalKeys = Object.keys(parsed).map(Number).sort((a, b) => b - a);
+
+      for (const key of finalKeys) {
+        const { desk, reg, name } = parsed[key];
 
         if (!desk || !/^\d{1,2}$/.test(desk))               continue;
         if (!reg  || reg.length < 6)                         continue;
         if (!/^[A-Z0-9]+$/i.test(reg.replace(/\s+/g, "")))  continue;
         if (!name)                                            continue;
 
+        // Skip footer lines
         const nu = name.toUpperCase();
         if (nu.includes("KUMARAGURU") || nu.includes("INVIGILATOR") ||
             nu.includes("SEATING")    || nu.includes("EXAMINATION")) continue;
@@ -556,7 +540,18 @@ async function uploadPDF(session) {
     }
 
     log(session, `📦 ${finalData.length} records total. Uploading…`);
-    await pushToAPI(session, finalData, session);
+
+    const res = await fetch(`${API_BASE}/admin/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session, data: finalData })
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => res.status);
+      throw new Error(`HTTP ${res.status}: ${txt}`);
+    }
+
     log(session, `✅ ${session} UPLOADED (${finalData.length} RECORDS)`);
 
   } catch (err) {

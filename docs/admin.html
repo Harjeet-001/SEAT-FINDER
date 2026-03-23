@@ -518,6 +518,7 @@ async function uploadPDF(session) {
 
       for (const key of sortedKeys) {
         const row = parsed[key];
+        if (!row) continue; // already deleted in a previous merge
         // This bucket has only a desk number — no reg or name
         if (/^\d{1,2}$/.test(row.desk) && !row.reg && !row.name) {
           // Find the nearest bucket within 25pt that has reg+name but no desk
@@ -525,13 +526,14 @@ async function uploadPDF(session) {
           for (const otherKey of sortedKeys) {
             if (otherKey === key) continue;
             const other = parsed[otherKey];
+            if (!other) continue; // already deleted
             const gap = Math.abs(otherKey - key);
             if (gap <= 25 && other.reg && other.name && !other.desk && gap < bestGap) {
               bestGap = gap;
               bestKey = otherKey;
             }
           }
-          if (bestKey !== null) {
+          if (bestKey !== null && parsed[bestKey]) {
             // Merge: give the desk number to the reg+name bucket, remove this one
             parsed[bestKey].desk = row.desk;
             delete parsed[key];

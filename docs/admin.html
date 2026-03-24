@@ -551,7 +551,7 @@ async function uploadPDF(session) {
         if (!desk || !/^\d{1,2}$/.test(desk))               continue;
         if (!reg  || reg.length < 6)                         continue;
         if (!/^[A-Z0-9]+$/i.test(reg.replace(/\s+/g, "")))  continue;
-        if (!name)                                            continue;
+       
 
         // Skip footer lines
         const nu = name.toUpperCase();
@@ -560,7 +560,7 @@ async function uploadPDF(session) {
 
         finalData.push({
           "REGISTER NUMBER": reg.replace(/\s+/g, "").toUpperCase(),
-          "NAME": name.trim(),
+          "NAME": name.trim() || "-",
           "SEAT": desk,
           "HALL": detectedHall,
           "SIDE": detectedSide

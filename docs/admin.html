@@ -483,7 +483,7 @@ async function uploadPDF(session) {
       // ── 5. BUILD ROW MAP with 5pt buckets ────────────────────────────────
       const rowMap = {};
       for (const item of dataItems) {
-        const key = Math.round(item.y / 5) * 5;
+        const key = Math.round(item.y / 10) * 10;
         rowMap[key] = rowMap[key] || [];
         rowMap[key].push(item);
       }

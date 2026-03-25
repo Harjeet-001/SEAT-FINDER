@@ -528,7 +528,7 @@ async function uploadPDF(session) {
             const other = parsed[otherKey];
             if (!other) continue; // already deleted
             const gap = Math.abs(otherKey - key);
-            if (gap <= 25 && other.reg && other.name && !other.desk && gap < bestGap) {
+            if (gap <= 40 && other.reg && !other.desk && gap < bestGap) {
               bestGap = gap;
               bestKey = otherKey;
             }
